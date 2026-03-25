@@ -597,6 +597,39 @@ class TestDexRouter(unittest.TestCase):
                 environment={"now": self.now},
             )
 
+    def test_plain_swap_rejects_flagged_fee_token(self):
+        _, pair_id = self.bootstrap_pair()
+        self.dex.addLiquidity(
+            tokenA="currency",
+            tokenB="con_tax_token",
+            amountADesired=1000,
+            amountBDesired=1000,
+            amountAMin=900,
+            amountBMin=900,
+            to=self.lp,
+            deadline=self.deadline,
+            signer=self.lp,
+            environment={"now": self.now},
+        )
+
+        self.dex.set_fee_on_transfer_token(
+            token="con_tax_token",
+            enabled=True,
+            signer=self.operator,
+        )
+
+        with self.assertRaises(AssertionError):
+            self.dex.swapExactTokenForToken(
+                amountIn=100,
+                amountOutMin=1,
+                pair=pair_id,
+                src="currency",
+                to=self.trader,
+                deadline=self.deadline,
+                signer=self.trader,
+                environment={"now": self.now},
+            )
+
     def test_supporting_fee_multi_hop_allows_fee_token_as_final_output(self):
         pair_ab = self.pairs.createPair(
             tokenA="con_plain_mid",

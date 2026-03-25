@@ -61,6 +61,18 @@ def assert_supported_fee_path(src: str, path: list):
 		if index < len(path) - 1:
 			assert not fee_on_transfer_tokens[current], 'SNAKX: UNSUPPORTED_INTERMEDIATE_FEE_TOKEN'
 
+
+def assert_plain_path(src: str, path: list):
+	current = src
+	assert not fee_on_transfer_tokens[current], 'SNAKX: FEE_TOKEN_REQUIRES_SUPPORTING_ROUTE'
+	for pair in path:
+		token0 = pairsmap[pair, "token0"]
+		token1 = pairsmap[pair, "token1"]
+		assert token0 is not None and token1 is not None, 'SNAKX: INVALID_PAIR'
+		assert current == token0 or current == token1, 'SNAKX: INVALID_PATH'
+		current = token1 if current == token0 else token0
+		assert not fee_on_transfer_tokens[current], 'SNAKX: FEE_TOKEN_REQUIRES_SUPPORTING_ROUTE'
+
 def safeTransferFrom(token: str, src: str, to: str, value: float):
 	t = importlib.import_module(token)
 	assert importlib.enforce_interface(t, token_interface)
@@ -220,6 +232,7 @@ def swapExactTokenForToken(
 ):
 	assert now < deadline, 'SNAKX: EXPIRED'
 	pairs = PAIRS()
+	assert_plain_path(src, [pair])
 	reserve0, reserve1, ignore = pairs.getReserves(pair)
 	order = (src == pairsmap[pair, "token0"])
 	if(not order):
@@ -385,6 +398,7 @@ def swapExactTokensForTokens(
 ):
 	assert now < deadline, 'SNAKX: EXPIRED'
 	pairs = PAIRS()
+	assert_plain_path(src, path)
 	
 	amounts = getAmountsOut(amountIn, src, path)
 	assert amounts[-1] >= amountOutMin, 'SNAKX: INSUFFICIENT_OUTPUT_AMOUNT'
