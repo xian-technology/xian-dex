@@ -18,6 +18,7 @@ Current coverage:
 - protocol fee (`feeTo`) minting on growth
 - guarded multi-hop fee-on-transfer routing
 - fee-on-transfer token flag permissions and toggling
+- plain-route rejection for flagged fee-on-transfer tokens
 
 Still worth adding:
 

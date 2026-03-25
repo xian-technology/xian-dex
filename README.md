@@ -31,6 +31,8 @@ logic, and convenience helpers.
   bridge tokens must be flagged with `set_fee_on_transfer_token(...)` and are
   then rejected in supporting multi-hop routes.
 - Fee-on-transfer token flags are router-owner controlled.
+- Plain swap routes reject flagged fee-on-transfer tokens and require the
+  supporting-fee router path instead.
 
 ## Validation
 
