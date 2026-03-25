@@ -26,6 +26,10 @@ logic, and convenience helpers.
   `con_pairs` are not automatically attributed to any pair.
 - Package-local tests now cover protocol-fee minting, multi-hop routing, and
   router-mediated LP allowance flows.
+- Multi-hop fee-on-transfer support is intentionally limited: the router can
+  handle fee-on-transfer ingress and final output, but known fee-on-transfer
+  bridge tokens must be flagged with `set_fee_on_transfer_token(...)` and are
+  then rejected in supporting multi-hop routes.
 
 ## Validation
 

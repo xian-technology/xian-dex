@@ -462,6 +462,122 @@ class TestDexRouter(unittest.TestCase):
         owner_lp_after = self.client.get_var("con_pairs", "pairs", [pair, "balances", "sys"]) or 0
         self.assertGreater(owner_lp_after, owner_lp_before)
 
+    def test_supporting_fee_multi_hop_rejects_fee_on_transfer_bridge_token(self):
+        pair_ab = self.pairs.createPair(
+            tokenA="con_tax_token",
+            tokenB="currency",
+            signer=self.operator,
+        )
+        pair_bc = self.pairs.createPair(
+            tokenA="con_plain_out",
+            tokenB="con_tax_token",
+            signer=self.operator,
+        )
+
+        self.dex.addLiquidity(
+            tokenA="currency",
+            tokenB="con_tax_token",
+            amountADesired=1000,
+            amountBDesired=1000,
+            amountAMin=900,
+            amountBMin=900,
+            to=self.lp,
+            deadline=self.deadline,
+            signer=self.lp,
+            environment={"now": self.now},
+        )
+        self.dex.addLiquidity(
+            tokenA="con_plain_out",
+            tokenB="con_tax_token",
+            amountADesired=1000,
+            amountBDesired=1000,
+            amountAMin=900,
+            amountBMin=900,
+            to=self.lp,
+            deadline=self.deadline,
+            signer=self.lp,
+            environment={"now": self.now},
+        )
+
+        self.dex.set_fee_on_transfer_token(
+            token="con_tax_token",
+            enabled=True,
+            signer=self.operator,
+        )
+
+        with self.assertRaises(AssertionError):
+            self.dex.swapExactTokensForTokensSupportingFeeOnTransferTokens(
+                amountIn=100,
+                amountOutMin=1,
+                path=[pair_ab, pair_bc],
+                src="currency",
+                to=self.trader,
+                deadline=self.deadline,
+                signer=self.trader,
+                environment={"now": self.now},
+            )
+
+    def test_supporting_fee_multi_hop_allows_fee_token_as_final_output(self):
+        pair_ab = self.pairs.createPair(
+            tokenA="con_plain_mid",
+            tokenB="currency",
+            signer=self.operator,
+        )
+        pair_bc = self.pairs.createPair(
+            tokenA="con_plain_mid",
+            tokenB="con_tax_token",
+            signer=self.operator,
+        )
+
+        self.dex.addLiquidity(
+            tokenA="currency",
+            tokenB="con_plain_mid",
+            amountADesired=1000,
+            amountBDesired=1000,
+            amountAMin=1000,
+            amountBMin=1000,
+            to=self.lp,
+            deadline=self.deadline,
+            signer=self.lp,
+            environment={"now": self.now},
+        )
+        self.dex.addLiquidity(
+            tokenA="con_plain_mid",
+            tokenB="con_tax_token",
+            amountADesired=1000,
+            amountBDesired=1000,
+            amountAMin=900,
+            amountBMin=900,
+            to=self.lp,
+            deadline=self.deadline,
+            signer=self.lp,
+            environment={"now": self.now},
+        )
+
+        self.dex.set_fee_on_transfer_token(
+            token="con_tax_token",
+            enabled=True,
+            signer=self.operator,
+        )
+
+        tax_before = self.tax.balance_of(address=self.trader, signer=self.operator)
+        output = self.dex.swapExactTokensForTokensSupportingFeeOnTransferTokens(
+            amountIn=100,
+            amountOutMin=1,
+            path=[pair_ab, pair_bc],
+            src="currency",
+            to=self.trader,
+            deadline=self.deadline,
+            signer=self.trader,
+            environment={"now": self.now},
+        )
+
+        self.assertGreater(output, ContractingDecimal("0"))
+        self.assertAmountEqual(
+            self.tax.balance_of(address=self.trader, signer=self.operator) - tax_before,
+            output,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

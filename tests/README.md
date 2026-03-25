@@ -15,8 +15,9 @@ Current coverage:
 - multi-hop routing and invalid-path rejection
 - LP allowance clearing
 - protocol fee (`feeTo`) minting on growth
+- guarded multi-hop fee-on-transfer routing
 
 Still worth adding:
 
-- fee-on-transfer behavior across multi-hop routes
+- owner/permission coverage for fee-on-transfer token flags
 - LP token transfer edge cases beyond router usage

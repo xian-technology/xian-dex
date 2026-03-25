@@ -2,6 +2,8 @@ DEX_PAIRS = "con_pairs"
 
 toks_to_pair = ForeignHash(foreign_contract=DEX_PAIRS, foreign_name='toks_to_pair')
 pairsmap = ForeignHash(foreign_contract=DEX_PAIRS, foreign_name='pairs')
+owner = Variable()
+fee_on_transfer_tokens = Hash(default_value=False)
 
 token_interface = [
     importlib.Func('transfer_from', args=('amount', 'to', 'main_account')),
@@ -9,6 +11,10 @@ token_interface = [
     importlib.Func('balance_of', args=('address',)),
     #importlib.Var('balances', Hash),
 ]
+
+@construct
+def constructor():
+	owner.set(ctx.signer)
 
 def PAIRS():
 	return importlib.import_module(DEX_PAIRS)
@@ -43,6 +49,18 @@ def validate_path(src: str, path: list):
 		current = token1 if current == token0 else token0
 	return current
 
+
+def assert_supported_fee_path(src: str, path: list):
+	current = src
+	for index in range(0, len(path)):
+		token0 = pairsmap[path[index], "token0"]
+		token1 = pairsmap[path[index], "token1"]
+		assert token0 is not None and token1 is not None, 'SNAKX: INVALID_PAIR'
+		assert current == token0 or current == token1, 'SNAKX: INVALID_PATH'
+		current = token1 if current == token0 else token0
+		if index < len(path) - 1:
+			assert not fee_on_transfer_tokens[current], 'SNAKX: UNSUPPORTED_INTERMEDIATE_FEE_TOKEN'
+
 def safeTransferFrom(token: str, src: str, to: str, value: float):
 	t = importlib.import_module(token)
 	assert importlib.enforce_interface(t, token_interface)
@@ -52,6 +70,12 @@ def quote(amountA: float, reserveA: float, reserveB: float):
 	assert amountA > 0, 'SNAKX: INSUFFICIENT_AMOUNT'
 	assert reserveA > 0 and reserveB > 0, 'SNAKX: INSUFFICIENT_LIQUIDITY'
 	return (amountA * reserveB) / reserveA;
+
+
+@export
+def set_fee_on_transfer_token(token: str, enabled: bool):
+	assert ctx.caller == owner.get(), 'SNAKX: FORBIDDEN'
+	fee_on_transfer_tokens[token] = enabled
 
 
 def internal_addLiquidity(
@@ -330,6 +354,7 @@ def swapExactTokensForTokensSupportingFeeOnTransferTokens(
 	
 	assert now < deadline, 'SNAKX: EXPIRED'
 	pairs = PAIRS()
+	assert_supported_fee_path(src, path)
 	
 	TOK0 = pairsmap[path[0], "token0"]
 	
