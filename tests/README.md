@@ -14,10 +14,11 @@ Current coverage:
 - router-only pair crediting
 - multi-hop routing and invalid-path rejection
 - LP allowance clearing
+- direct LP transfer and allowance-based LP transfer
 - protocol fee (`feeTo`) minting on growth
 - guarded multi-hop fee-on-transfer routing
+- fee-on-transfer token flag permissions and toggling
 
 Still worth adding:
 
-- owner/permission coverage for fee-on-transfer token flags
 - LP token transfer edge cases beyond router usage

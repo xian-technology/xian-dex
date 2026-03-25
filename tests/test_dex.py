@@ -414,6 +414,86 @@ class TestDexRouter(unittest.TestCase):
                 environment={"now": self.now},
             )
 
+    def test_liq_transfer_moves_lp_balance_between_accounts(self):
+        _, pair_id = self.bootstrap_pair()
+        added = self.dex.addLiquidity(
+            tokenA="currency",
+            tokenB="con_tax_token",
+            amountADesired=1000,
+            amountBDesired=1000,
+            amountAMin=900,
+            amountBMin=900,
+            to=self.lp,
+            deadline=self.deadline,
+            signer=self.lp,
+            environment={"now": self.now},
+        )
+        liquidity = added[2]
+        moved = liquidity / 2
+
+        lp_before = self.client.get_var("con_pairs", "pairs", [pair_id, "balances", self.lp]) or 0
+        trader_before = self.client.get_var("con_pairs", "pairs", [pair_id, "balances", self.trader]) or 0
+
+        self.pairs.liqTransfer(
+            pair=pair_id,
+            amount=moved,
+            to=self.trader,
+            signer=self.lp,
+        )
+
+        lp_after = self.client.get_var("con_pairs", "pairs", [pair_id, "balances", self.lp]) or 0
+        trader_after = self.client.get_var("con_pairs", "pairs", [pair_id, "balances", self.trader]) or 0
+        self.assertAmountEqual(lp_before - lp_after, moved)
+        self.assertAmountEqual(trader_after - trader_before, moved)
+
+    def test_liq_transfer_from_consumes_allowance(self):
+        _, pair_id = self.bootstrap_pair()
+        added = self.dex.addLiquidity(
+            tokenA="currency",
+            tokenB="con_tax_token",
+            amountADesired=1000,
+            amountBDesired=1000,
+            amountAMin=900,
+            amountBMin=900,
+            to=self.lp,
+            deadline=self.deadline,
+            signer=self.lp,
+            environment={"now": self.now},
+        )
+        liquidity = added[2]
+        approved = liquidity / 3
+
+        self.pairs.liqApprove(
+            pair=pair_id,
+            amount=approved,
+            to=self.trader,
+            signer=self.lp,
+        )
+
+        self.pairs.liqTransfer_from(
+            pair=pair_id,
+            amount=approved,
+            to=self.trader,
+            main_account=self.lp,
+            signer=self.trader,
+        )
+
+        remaining_allowance = self.client.get_var(
+            "con_pairs", "pairs", [pair_id, "balances", self.lp, self.trader]
+        ) or 0
+        trader_balance = self.client.get_var("con_pairs", "pairs", [pair_id, "balances", self.trader]) or 0
+        self.assertAmountEqual(remaining_allowance, 0)
+        self.assertAmountEqual(trader_balance, approved)
+
+        with self.assertRaises(AssertionError):
+            self.pairs.liqTransfer_from(
+                pair=pair_id,
+                amount=ContractingDecimal("0.000001"),
+                to=self.trader,
+                main_account=self.lp,
+                signer=self.trader,
+            )
+
     def test_protocol_fee_mints_liquidity_to_owner(self):
         pair = self.pairs.createPair(
             tokenA="con_plain_mid",
@@ -576,6 +656,32 @@ class TestDexRouter(unittest.TestCase):
         self.assertAmountEqual(
             self.tax.balance_of(address=self.trader, signer=self.operator) - tax_before,
             output,
+        )
+
+    def test_set_fee_on_transfer_token_is_owner_only_and_toggleable(self):
+        with self.assertRaises(AssertionError):
+            self.dex.set_fee_on_transfer_token(
+                token="con_tax_token",
+                enabled=True,
+                signer=self.trader,
+            )
+
+        self.dex.set_fee_on_transfer_token(
+            token="con_tax_token",
+            enabled=True,
+            signer=self.operator,
+        )
+        self.assertTrue(
+            self.client.get_var("con_dex", "fee_on_transfer_tokens", ["con_tax_token"])
+        )
+
+        self.dex.set_fee_on_transfer_token(
+            token="con_tax_token",
+            enabled=False,
+            signer=self.operator,
+        )
+        self.assertFalse(
+            self.client.get_var("con_dex", "fee_on_transfer_tokens", ["con_tax_token"])
         )
 
 

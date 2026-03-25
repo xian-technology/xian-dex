@@ -30,6 +30,7 @@ logic, and convenience helpers.
   handle fee-on-transfer ingress and final output, but known fee-on-transfer
   bridge tokens must be flagged with `set_fee_on_transfer_token(...)` and are
   then rejected in supporting multi-hop routes.
+- Fee-on-transfer token flags are router-owner controlled.
 
 ## Validation
 
