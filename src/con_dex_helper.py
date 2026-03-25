@@ -4,22 +4,18 @@ DEX_PAIRS = "con_pairs"
 toks_to_pair = ForeignHash(foreign_contract=DEX_PAIRS, foreign_name='toks_to_pair')
 pairs = ForeignHash(foreign_contract=DEX_PAIRS, foreign_name='pairs')
 
-def build_deadline(minutes_from_now: float):
-    assert minutes_from_now > 0, "Deadline minutes must be positive"
-    total_seconds = int(minutes_from_now * 60)
-    assert total_seconds > 0, "Deadline must be at least one second in the future"
-    return now + datetime.timedelta(seconds=total_seconds)
-
 @export
 def buy(
     buy_token: str, 
     sell_token: str, 
     amount: float, 
     slippage: float = 1, 
-    deadline_min: float = 1
+    deadline: datetime.datetime = None
 ):
     assert amount > 0, "Amount must be positive"
     assert 0 <= slippage <= 100, "Slippage must be between 0 and 100%"
+    assert deadline is not None, "Deadline is required"
+    assert now < deadline, "Trade deadline has expired"
     
     token_a, token_b = (
         (buy_token, sell_token) if buy_token < sell_token else (sell_token, buy_token)
@@ -36,13 +32,15 @@ def buy(
         reserve_buy, reserve_sell = reserve_a, reserve_b
     else:
         reserve_buy, reserve_sell = reserve_b, reserve_a
-    
-    numerator = amount * reserve_sell
-    denominator = reserve_buy - amount
-    assert denominator > 0, "Cannot buy more than available in reserves"
-    
-    input_amount = (numerator / denominator) * (1 + (slippage / 100))
-    input_amount = input_amount / 0.997  # 0.3% fee
+
+    fee_bps = dex.getTradeFeeBps(account=ctx.signer)
+    input_amount = dex.getAmountIn(
+        amountOut=amount,
+        reserveIn=reserve_sell,
+        reserveOut=reserve_buy,
+        feeBps=fee_bps,
+    )
+    input_amount = input_amount * (1 + (slippage / 100))
     input_amount = input_amount * 1.0001  # small buffer
     
     sell_token_contract = importlib.import_module(sell_token)
@@ -66,7 +64,7 @@ def buy(
         pair=pair_id,
         src=sell_token,
         to=ctx.caller,
-        deadline=build_deadline(deadline_min)
+        deadline=deadline
     )
     
     return input_amount, output_amount
@@ -77,10 +75,12 @@ def sell(
     buy_token: str, 
     amount: float, 
     slippage: float = 1, 
-    deadline_min: float = 1
+    deadline: datetime.datetime = None
 ):
     assert amount > 0, "Amount must be positive"
     assert 0 <= slippage <= 100, "Slippage must be between 0 and 100%"
+    assert deadline is not None, "Deadline is required"
+    assert now < deadline, "Trade deadline has expired"
 
     token_a, token_b = (
         (buy_token, sell_token) if buy_token < sell_token else (sell_token, buy_token)
@@ -98,7 +98,13 @@ def sell(
     else:
         reserve_sell, reserve_buy = reserve_b, reserve_a
     
-    expected_output = dex.getAmountOut(amount, reserve_sell, reserve_buy)
+    fee_bps = dex.getTradeFeeBps(account=ctx.signer)
+    expected_output = dex.getAmountOut(
+        amountIn=amount,
+        reserveIn=reserve_sell,
+        reserveOut=reserve_buy,
+        feeBps=fee_bps,
+    )
     
     sell_token_contract = importlib.import_module(sell_token)
     
@@ -116,7 +122,7 @@ def sell(
         pair=pair_id,
         src=sell_token,
         to=ctx.caller,
-        deadline=build_deadline(deadline_min)
+        deadline=deadline
     )
     
     return amount, output_amount

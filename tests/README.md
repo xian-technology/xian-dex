@@ -20,6 +20,8 @@ Current coverage:
 - fee-on-transfer token flag permissions and toggling
 - zero-fee trader permissions, toggling, and better quote/execution outcomes
 - plain-route rejection for flagged fee-on-transfer tokens
+- helper absolute-deadline enforcement
+- helper quote behavior for zero-fee trader accounts
 
 Still worth adding:
 

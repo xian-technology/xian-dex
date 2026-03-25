@@ -234,9 +234,26 @@ def get_amount_out_for_fee(amountIn: float, reserveIn: float, reserveOut: float,
 #(x*997*y)/(z*1000+997*x) = (x*0.997*y)/(z+0.997*x)
 
 
+def get_amount_in_for_fee(amountOut: float, reserveIn: float, reserveOut: float, fee_bps: int):
+	validate_fee_bps(fee_bps)
+	assert amountOut > 0, 'SNAKX: INSUFFICIENT_OUTPUT_AMOUNT'
+	assert reserveIn > 0 and reserveOut > 0, 'SNAKX: INSUFFICIENT_LIQUIDITY'
+	assert reserveOut > amountOut, 'SNAKX: INSUFFICIENT_LIQUIDITY'
+	fee_multiplier = (10000 - fee_bps) / 10000
+	assert fee_multiplier > 0, 'SNAKX: INVALID_FEE_BPS'
+	numerator = reserveIn * amountOut
+	denominator = (reserveOut - amountOut) * fee_multiplier
+	return numerator / denominator
+
+
 @export
 def getAmountOut(amountIn: float, reserveIn: float, reserveOut: float, feeBps: int = DEFAULT_TRADE_FEE_BPS):
 	return get_amount_out_for_fee(amountIn, reserveIn, reserveOut, feeBps)
+
+
+@export
+def getAmountIn(amountOut: float, reserveIn: float, reserveOut: float, feeBps: int = DEFAULT_TRADE_FEE_BPS):
+	return get_amount_in_for_fee(amountOut, reserveIn, reserveOut, feeBps)
 
 
 def get_amounts_out_for_fee(amountIn: float, src: str, path: list, fee_bps: int):
