@@ -26,6 +26,12 @@ def actual_balance(token: str, address: str):
 	balance = t.balance_of(address)
 	return 0 if balance is None else balance
 
+
+def transfer_into_pairs(token: str, src: str, amount: float):
+	balance_before = actual_balance(token, DEX_PAIRS)
+	safeTransferFrom(token, src, DEX_PAIRS, amount)
+	return actual_balance(token, DEX_PAIRS) - balance_before
+
 def safeTransferFrom(token: str, src: str, to: str, value: float):
 	t = importlib.import_module(token)
 	assert importlib.enforce_interface(t, token_interface)
@@ -87,16 +93,10 @@ def addLiquidity(
 	amountA, amountB = internal_addLiquidity(tokenA, tokenB, amountADesired, amountBDesired, amountAMin, amountBMin)
 
 	pair = toks_to_pair[tokenA, tokenB]
-
-	balance0_before = pairsmap[pair, "balance0"]
-	balance1_before = pairsmap[pair, "balance1"]
 	
-	safeTransferFrom(tokenA, ctx.caller, DEX_PAIRS, amountA);
-	safeTransferFrom(tokenB, ctx.caller, DEX_PAIRS, amountB);
-	pairs.sync2(pair)
-
-	actual_amountA = pairsmap[pair, "balance0"] - balance0_before
-	actual_amountB = pairsmap[pair, "balance1"] - balance1_before
+	actual_amountA = transfer_into_pairs(tokenA, ctx.caller, amountA)
+	actual_amountB = transfer_into_pairs(tokenB, ctx.caller, amountB)
+	pairs.sync2(pair, actual_amountA, actual_amountB)
 	assert actual_amountA >= amountAMin, 'SNAKX: INSUFFICIENT_A_AMOUNT'
 	assert actual_amountB >= amountBMin, 'SNAKX: INSUFFICIENT_B_AMOUNT'
 	
@@ -130,7 +130,6 @@ def removeLiquidity(
 	balanceB_before = actual_balance(tokenB, to)
 	#liqTransfer_from(desired_pair, liquidity, ctx.this, ctx.caller)
 	pairs.liqTransfer_from(desired_pair, liquidity, DEX_PAIRS, ctx.caller)
-	pairs.sync2(desired_pair)
 	pairs.burn(desired_pair, to)
 
 	actual_amountA = actual_balance(tokenA, to) - balanceA_before
@@ -191,8 +190,11 @@ def swapExactTokenForToken(
 		reserve0, reserve1 = reserve1, reserve0
 	amount = getAmountOut(amountIn, reserve0, reserve1)
 	assert amount >= amountOutMin, 'SNAKX: INSUFFICIENT_OUTPUT_AMOUNT'
-	safeTransferFrom(src, ctx.caller, DEX_PAIRS, amountIn)
-	pairs.sync2(pair)
+	actual_amount_in = transfer_into_pairs(src, ctx.caller, amountIn)
+	if order:
+		pairs.sync2(pair, actual_amount_in, 0)
+	else:
+		pairs.sync2(pair, 0, actual_amount_in)
 	out0 = 0 if order else amount
 	out1 = amount if order else 0
 	pairs.swap(pair, out0, out1, to)
@@ -220,8 +222,11 @@ def swapExactTokenForTokenSupportingFeeOnTransferTokens(
 	
 	balanceBefore = t.balance_of(to)
 	
-	safeTransferFrom(src, ctx.caller, DEX_PAIRS, amountIn)
-	pairs.sync2(pair)
+	actual_amount_in = transfer_into_pairs(src, ctx.caller, amountIn)
+	if order:
+		pairs.sync2(pair, actual_amount_in, 0)
+	else:
+		pairs.sync2(pair, 0, actual_amount_in)
 	
 	reserve0, reserve1, ignore = pairs.getReserves(pair)
 	sur0, sur1 = pairs.getSurplus(pair)
@@ -318,8 +323,11 @@ def swapExactTokensForTokensSupportingFeeOnTransferTokens(
 	
 	order = (src == TOK0)
 	
-	safeTransferFrom(src, ctx.caller, DEX_PAIRS, amountIn)
-	pairs.sync2(path[0])
+	actual_amount_in = transfer_into_pairs(src, ctx.caller, amountIn)
+	if order:
+		pairs.sync2(path[0], actual_amount_in, 0)
+	else:
+		pairs.sync2(path[0], 0, actual_amount_in)
 	
 	sur0, sur1 = pairs.getSurplus(path[0])
 	
@@ -344,8 +352,11 @@ def swapExactTokensForTokens(
 	amounts = getAmountsOut(amountIn, src, path)
 	assert amounts[-1] >= amountOutMin, 'SNAKX: INSUFFICIENT_OUTPUT_AMOUNT'
 
-	safeTransferFrom(src, ctx.caller, DEX_PAIRS, amountIn)
-	pairs.sync2(path[0])
+	actual_amount_in = transfer_into_pairs(src, ctx.caller, amountIn)
+	if pairsmap[path[0], "token0"] == src:
+		pairs.sync2(path[0], actual_amount_in, 0)
+	else:
+		pairs.sync2(path[0], 0, actual_amount_in)
 	internal_swap(amounts, src, path, to)
 	
 	return amounts[-1]

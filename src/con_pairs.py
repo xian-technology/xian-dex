@@ -1,5 +1,6 @@
 MINIMUM_LIQUIDITY = 0.00000001
 MAXIMUM_BALANCE = 1e14
+DEX_ROUTER = "con_dex"
 
 PairCreated = LogEvent(event="PairCreated",
 	params={
@@ -283,9 +284,11 @@ def sync(pair: int):
 
 #noreentry
 @export
-def sync2(pair: int):
+def sync2(pair: int, amount0: float = 0.0, amount1: float = 0.0):
 	assert not LOCK.get(), "SNAKX: LOCKED"
+	assert ctx.caller == DEX_ROUTER, "SNAKX: FORBIDDEN"
 	LOCK.set(True)
+	assert amount0 >= 0 and amount1 >= 0, "SNAKX: NEGATIVE_AMOUNT"
 	tokenA = pairs[pair, "token0"]
 	tokenB = pairs[pair, "token1"]
 	
@@ -306,20 +309,18 @@ def sync2(pair: int):
 	balB = tB.balance_of(ctx.this)
 	if balB == None:
 		balB = 0.0
-		
-	incA = balA - balances[tokenA]
-	assert incA >= 0, "SNAKX: token0_neg"
-	incB = balB - balances[tokenB]
-	assert incB >= 0, "SNAKX: token1_neg"
-	
-	pairs[pair, "balance0"] += incA
-	pairs[pair, "balance1"] += incB
+
+	assert balA >= balances[tokenA] + amount0, "SNAKX: token0_missing"
+	assert balB >= balances[tokenB] + amount1, "SNAKX: token1_missing"
+
+	pairs[pair, "balance0"] += amount0
+	pairs[pair, "balance1"] += amount1
 	
 	assert pairs[pair, "balance0"] <= MAXIMUM_BALANCE, "SNAKX: TokenA OVERFLOW"
 	assert pairs[pair, "balance1"] <= MAXIMUM_BALANCE, "SNAKX: TokenB OVERFLOW"
 	
-	balances[tokenA] = balA
-	balances[tokenB] = balB
+	balances[tokenA] += amount0
+	balances[tokenB] += amount1
 	
 	LOCK.set(False)
 

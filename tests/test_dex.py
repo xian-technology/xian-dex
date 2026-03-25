@@ -271,6 +271,34 @@ class TestDexRouter(unittest.TestCase):
             output,
         )
 
+    def test_unsolicited_token_transfer_is_not_credited_to_pair(self):
+        _, pair_id = self.bootstrap_pair()
+        self.currency.transfer(amount=200, to="con_pairs", signer=self.operator)
+
+        added = self.dex.addLiquidity(
+            tokenA="currency",
+            tokenB="con_tax_token",
+            amountADesired=100,
+            amountBDesired=100,
+            amountAMin=90,
+            amountBMin=90,
+            to=self.lp,
+            deadline=self.deadline,
+            signer=self.lp,
+            environment={"now": self.now},
+        )
+
+        self.assertAmountEqual(added[0], "100")
+        self.assertAmountEqual(added[1], "95")
+        reserves = self.pairs.getReserves(pair=pair_id, signer=self.operator)
+        self.assertAmountEqual(reserves[0], "95")
+        self.assertAmountEqual(reserves[1], "100")
+
+    def test_sync2_is_router_only(self):
+        _, pair_id = self.bootstrap_pair()
+        with self.assertRaises(AssertionError):
+            self.pairs.sync2(pair=pair_id, amount0=1, amount1=0, signer=self.operator)
+
 
 if __name__ == "__main__":
     unittest.main()

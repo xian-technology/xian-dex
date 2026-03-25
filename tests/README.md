@@ -10,6 +10,8 @@ Current coverage:
 - caller-order amount returns
 - minimum amount checks on actual received amounts
 - single-path fee-on-transfer swap return values
+- unsolicited token transfers not being credited to a pair
+- router-only pair crediting
 
 Still worth adding:
 
