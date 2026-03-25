@@ -1,14 +1,18 @@
 # Tests
 
-This package does not have automated tests yet.
+This package has package-local integration coverage for the router and pair
+contracts.
 
-The contracts are still validated by the repo-wide lint and compile checks, but
-the package should gain integration tests before it is promoted beyond
-`candidate`.
+Current coverage:
 
-Recommended first coverage:
+- pair creation and reserve setup
+- liquidity add/remove against a fee-on-transfer token
+- caller-order amount returns
+- minimum amount checks on actual received amounts
+- single-path fee-on-transfer swap return values
 
-- pair creation
-- liquidity add/remove
-- swap execution
-- fee-on-transfer token path
+Still worth adding:
+
+- multi-hop routing
+- LP token transfer/approval edge cases
+- protocol fee (`feeTo`) behavior

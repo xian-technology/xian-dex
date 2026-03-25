@@ -20,9 +20,10 @@ logic, and convenience helpers.
 - The contracts use an older code style and deserve deeper hardening before
   being treated as a polished production drop-in.
 - `con_dex_helper.py` is wired to the package router name `con_dex`.
-- Package-local automated tests are still missing.
+- Router liquidity paths now return and enforce actual received amounts, which
+  matters for fee-on-transfer tokens.
 
 ## Validation
 
 - repo-wide lint and compile checks
-- no package-local automated tests yet
+- package-local router integration tests

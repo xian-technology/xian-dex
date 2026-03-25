@@ -13,6 +13,19 @@ token_interface = [
 def PAIRS():
 	return importlib.import_module(DEX_PAIRS)
 
+
+def canonicalize_tokens(tokenA: str, tokenB: str):
+	if tokenB < tokenA:
+		return tokenB, tokenA, True
+	return tokenA, tokenB, False
+
+
+def actual_balance(token: str, address: str):
+	t = importlib.import_module(token)
+	assert importlib.enforce_interface(t, token_interface)
+	balance = t.balance_of(address)
+	return 0 if balance is None else balance
+
 def safeTransferFrom(token: str, src: str, to: str, value: float):
 	t = importlib.import_module(token)
 	assert importlib.enforce_interface(t, token_interface)
@@ -63,24 +76,36 @@ def addLiquidity(
 	amountBMin: float,
 	to: str,
 	deadline: datetime.datetime
-):
+	):
 	assert now < deadline, 'SNAKX: EXPIRED'
 	pairs = PAIRS()
-	
-	if(tokenB < tokenA):
-		tokenA, tokenB = tokenB, tokenA
+
+	tokenA, tokenB, reversed_order = canonicalize_tokens(tokenA, tokenB)
+	if reversed_order:
+		amountADesired, amountBDesired = amountBDesired, amountADesired
+		amountAMin, amountBMin = amountBMin, amountAMin
 	amountA, amountB = internal_addLiquidity(tokenA, tokenB, amountADesired, amountBDesired, amountAMin, amountBMin)
 
 	pair = toks_to_pair[tokenA, tokenB]
+
+	balance0_before = pairsmap[pair, "balance0"]
+	balance1_before = pairsmap[pair, "balance1"]
 	
 	safeTransferFrom(tokenA, ctx.caller, DEX_PAIRS, amountA);
 	safeTransferFrom(tokenB, ctx.caller, DEX_PAIRS, amountB);
 	pairs.sync2(pair)
+
+	actual_amountA = pairsmap[pair, "balance0"] - balance0_before
+	actual_amountB = pairsmap[pair, "balance1"] - balance1_before
+	assert actual_amountA >= amountAMin, 'SNAKX: INSUFFICIENT_A_AMOUNT'
+	assert actual_amountB >= amountBMin, 'SNAKX: INSUFFICIENT_B_AMOUNT'
 	
 	liquidity = pairs.mint(pair, to)
-	
-	
-	return amountA, amountB, liquidity
+
+	if reversed_order:
+		return actual_amountB, actual_amountA, liquidity
+
+	return actual_amountA, actual_amountB, liquidity
 
 @export
 def removeLiquidity(
@@ -91,20 +116,32 @@ def removeLiquidity(
 	amountBMin: float,
 	to: str,
 	deadline: datetime.datetime
-):
+	):
 	assert now < deadline, 'SNAKX: EXPIRED'
 	pairs = PAIRS()
-	
+
+	tokenA, tokenB, reversed_order = canonicalize_tokens(tokenA, tokenB)
+	if reversed_order:
+		amountAMin, amountBMin = amountBMin, amountAMin
 	desired_pair = toks_to_pair[tokenA, tokenB]
 	assert desired_pair != None, "SNAKX: NO_PAIR"
-#liqTransfer_from(desired_pair, liquidity, ctx.this, ctx.caller)
+
+	balanceA_before = actual_balance(tokenA, to)
+	balanceB_before = actual_balance(tokenB, to)
+	#liqTransfer_from(desired_pair, liquidity, ctx.this, ctx.caller)
 	pairs.liqTransfer_from(desired_pair, liquidity, DEX_PAIRS, ctx.caller)
 	pairs.sync2(desired_pair)
-	amountA, amountB = pairs.burn(desired_pair, to)
-	assert amountA >= amountAMin, 'SNAKX: INSUFFICIENT_A_AMOUNT'
-	assert amountB >= amountBMin, 'SNAKX: INSUFFICIENT_B_AMOUNT'
-	
-	return amountA, amountB
+	pairs.burn(desired_pair, to)
+
+	actual_amountA = actual_balance(tokenA, to) - balanceA_before
+	actual_amountB = actual_balance(tokenB, to) - balanceB_before
+	assert actual_amountA >= amountAMin, 'SNAKX: INSUFFICIENT_A_AMOUNT'
+	assert actual_amountB >= amountBMin, 'SNAKX: INSUFFICIENT_B_AMOUNT'
+
+	if reversed_order:
+		return actual_amountB, actual_amountA
+
+	return actual_amountA, actual_amountB
 	
 @export
 def getAmountOut(amountIn: float, reserveIn: float, reserveOut: float):
@@ -272,8 +309,7 @@ def swapExactTokensForTokensSupportingFeeOnTransferTokens(
 	deadline: datetime.datetime
 ):
 	if len(path) == 1:
-		swapExactTokenForTokenSupportingFeeOnTransferTokens(amountIn, amountOutMin, path[0], src, to, deadline)
-		return
+		return swapExactTokenForTokenSupportingFeeOnTransferTokens(amountIn, amountOutMin, path[0], src, to, deadline)
 	
 	assert now < deadline, 'SNAKX: EXPIRED'
 	pairs = PAIRS()
