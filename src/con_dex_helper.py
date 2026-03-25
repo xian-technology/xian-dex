@@ -1,4 +1,4 @@
-DEX_CONTRACT = "con_dex_v2"
+DEX_CONTRACT = "con_dex"
 DEX_PAIRS = "con_pairs"
 
 toks_to_pair = ForeignHash(foreign_contract=DEX_PAIRS, foreign_name='toks_to_pair')

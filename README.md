@@ -19,6 +19,7 @@ logic, and convenience helpers.
   system.
 - The contracts use an older code style and deserve deeper hardening before
   being treated as a polished production drop-in.
+- `con_dex_helper.py` is wired to the package router name `con_dex`.
 - Package-local automated tests are still missing.
 
 ## Validation
