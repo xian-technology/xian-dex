@@ -365,6 +365,55 @@ def internal_burn(pair: int, src: str, value: float):
 	pairs[pair, "balances", src] -= value
 	assert pairs[pair, "balances", src] >= 0, "Negative balance!"
 
+
+def validate_fee_bps(fee_bps: int):
+	assert fee_bps == 0 or fee_bps == 30, "SNAKX: INVALID_FEE_BPS"
+
+
+def swap_impl(pair: int, amount0Out: float, amount1Out: float, to: Any, fee_bps: int, to_pair: bool):
+	validate_fee_bps(fee_bps)
+	assert not LOCK.get(), "SNAKX: LOCKED"
+	LOCK.set(True)
+	
+	assert amount0Out > 0 or amount1Out > 0, 'SNAKX: INSUFFICIENT_OUTPUT_AMOUNT'
+	reserve0, reserve1, ignore = getReserves(pair)
+	assert amount0Out < reserve0 and amount1Out < reserve1, 'SNAKX: INSUFFICIENT_LIQUIDITY'
+	token0 = pairs[pair, "token0"]
+	token1 = pairs[pair, "token1"]
+	if not to_pair:
+		assert to != token0 and to != token1, 'SNAKX: INVALID_TO'
+	
+	if amount0Out > 0:
+		if to_pair:
+			safeTransferFromPairToPair(pair, token0, to, amount0Out)
+		else:
+			safeTransferFromPair(pair, token0, to, amount0Out)
+	if amount1Out > 0:
+		if to_pair:
+			safeTransferFromPairToPair(pair, token1, to, amount1Out)
+		else:
+			safeTransferFromPair(pair, token1, to, amount1Out)
+	balance0 = pairs[pair, "balance0"]
+	balance1 = pairs[pair, "balance1"]
+	amount0In = balance0 - (reserve0 - amount0Out) if balance0 > reserve0 - amount0Out else 0
+	amount1In = balance1 - (reserve1 - amount1Out) if balance1 > reserve1 - amount1Out else 0
+	assert amount0In > 0 or amount1In > 0, 'SNAKX: INSUFFICIENT_INPUT_AMOUNT'
+	fee_rate = fee_bps / 10000
+	balance0Adjusted = balance0 - (amount0In * fee_rate)
+	balance1Adjusted = balance1 - (amount1In * fee_rate)
+	assert (balance0Adjusted * balance1Adjusted) >= (reserve0 * reserve1), 'SNAKX: K'
+
+	internal_update(pair, balance0, balance1)
+	if not to_pair:
+		sync(pair)
+	
+	Swap({"pair": pair,
+		"amount0In": amount0In, "amount1In": amount1In,
+		"amount0Out": amount0Out, "amount1Out": amount1Out,
+		"to": to})
+		
+	LOCK.set(False)
+
 #noreentry
 @export
 def burn(pair: int, to: str):
@@ -449,75 +498,21 @@ def mint(pair: int, to: str):
 #noreentry
 @export
 def swap(pair: int, amount0Out: float, amount1Out: float, to: str):
-	assert not LOCK.get(), "SNAKX: LOCKED"
-	LOCK.set(True)
-	
-	assert amount0Out > 0 or amount1Out > 0, 'SNAKX: INSUFFICIENT_OUTPUT_AMOUNT'
-	reserve0, reserve1, ignore = getReserves(pair)
-	assert amount0Out < reserve0 and amount1Out < reserve1, 'SNAKX: INSUFFICIENT_LIQUIDITY'
-	token0 = pairs[pair, "token0"]
-	token1 = pairs[pair, "token1"]
-	assert to != token0 and to != token1, 'SNAKX: INVALID_TO'
-	
-	if (amount0Out > 0):
-		safeTransferFromPair(pair, token0, to, amount0Out)
-	if (amount1Out > 0):
-		safeTransferFromPair(pair, token1, to, amount1Out)
-	balance0 = pairs[pair, "balance0"]
-	balance1 = pairs[pair, "balance1"]
-	amount0In = balance0 - (reserve0 - amount0Out) if balance0 > reserve0 - amount0Out else 0
-	amount1In = balance1 - (reserve1 - amount1Out) if balance1 > reserve1 - amount1Out else 0
-	assert amount0In > 0 or amount1In > 0, 'SNAKX: INSUFFICIENT_INPUT_AMOUNT'
-	balance0Adjusted = (balance0) - (amount0In * 0.003)
-	balance1Adjusted = (balance1) - (amount1In * 0.003)
-	assert (balance0Adjusted * balance1Adjusted) >= (reserve0 * reserve1), 'SNAKX: K'
-#		or abs((balance0Adjusted * balance1Adjusted) - (reserve0 * reserve1)) < MINIMUM_LIQUIDITY, 'SNAKX: K'
-
-	#internal_update(pair, balance0, balance1, reserve0, reserve1);
-	internal_update(pair, balance0, balance1)
-	sync(pair)
-	
-	Swap({"pair": pair,
-		"amount0In": amount0In, "amount1In": amount1In,
-		"amount0Out": amount0Out, "amount1Out": amount1Out,
-		"to": to})
-		
-	LOCK.set(False)
-	#emit Swap(msg.sender, amount0In, amount1In, amount0Out, amount1Out, to);
+	swap_impl(pair, amount0Out, amount1Out, to, 30, False)
 	
 #noreentry
 @export
 def swapToPair(pair: int, amount0Out: float, amount1Out: float, to: int):
-	assert not LOCK.get(), "SNAKX: LOCKED"
-	LOCK.set(True)
-	
-	assert amount0Out > 0 or amount1Out > 0, 'SNAKX: INSUFFICIENT_OUTPUT_AMOUNT'
-	reserve0, reserve1, ignore = getReserves(pair)
-	assert amount0Out < reserve0 and amount1Out < reserve1, 'SNAKX: INSUFFICIENT_LIQUIDITY'
-	token0 = pairs[pair, "token0"]
-	token1 = pairs[pair, "token1"]
+	swap_impl(pair, amount0Out, amount1Out, to, 30, True)
 
-	if (amount0Out > 0):
-		safeTransferFromPairToPair(pair, token0, to, amount0Out)
-	if (amount1Out > 0):
-		safeTransferFromPairToPair(pair, token1, to, amount1Out)
-	balance0 = pairs[pair, "balance0"]
-	balance1 = pairs[pair, "balance1"]
-	amount0In = balance0 - (reserve0 - amount0Out) if balance0 > reserve0 - amount0Out else 0
-	amount1In = balance1 - (reserve1 - amount1Out) if balance1 > reserve1 - amount1Out else 0
-	assert amount0In > 0 or amount1In > 0, 'SNAKX: INSUFFICIENT_INPUT_AMOUNT'
-	balance0Adjusted = (balance0) - (amount0In * 0.003)
-	balance1Adjusted = (balance1) - (amount1In * 0.003)
-	assert (balance0Adjusted * balance1Adjusted) >= (reserve0 * reserve1), 'SNAKX: K'
-#		or abs((balance0Adjusted * balance1Adjusted) - (reserve0 * reserve1)) < MINIMUM_LIQUIDITY, 'SNAKX: K'
 
-	#internal_update(pair, balance0, balance1, reserve0, reserve1);
-	internal_update(pair, balance0, balance1);
-	
-	Swap({"pair": pair,
-		"amount0In": amount0In, "amount1In": amount1In,
-		"amount0Out": amount0Out, "amount1Out": amount1Out,
-		"to": to})
-		
-	LOCK.set(False)
-	#emit Swap(msg.sender, amount0In, amount1In, amount0Out, amount1Out, to);
+@export
+def routerSwap(pair: int, amount0Out: float, amount1Out: float, to: str, fee_bps: int):
+	assert ctx.caller == DEX_ROUTER, "SNAKX: FORBIDDEN"
+	swap_impl(pair, amount0Out, amount1Out, to, fee_bps, False)
+
+
+@export
+def routerSwapToPair(pair: int, amount0Out: float, amount1Out: float, to: int, fee_bps: int):
+	assert ctx.caller == DEX_ROUTER, "SNAKX: FORBIDDEN"
+	swap_impl(pair, amount0Out, amount1Out, to, fee_bps, True)

@@ -1,9 +1,19 @@
 DEX_PAIRS = "con_pairs"
+DEFAULT_TRADE_FEE_BPS = 30
+ZERO_TRADE_FEE_BPS = 0
 
 toks_to_pair = ForeignHash(foreign_contract=DEX_PAIRS, foreign_name='toks_to_pair')
 pairsmap = ForeignHash(foreign_contract=DEX_PAIRS, foreign_name='pairs')
 owner = Variable()
 fee_on_transfer_tokens = Hash(default_value=False)
+zero_fee_signers = Hash(default_value=False)
+
+ZeroFeeTraderUpdated = LogEvent(event="ZeroFeeTraderUpdated",
+	params={
+	"account": {'type': str, 'idx': True},
+	"enabled": {'type': bool}
+	}
+)
 
 token_interface = [
     importlib.Func('transfer_from', args=('amount', 'to', 'main_account')),
@@ -18,6 +28,18 @@ def constructor():
 
 def PAIRS():
 	return importlib.import_module(DEX_PAIRS)
+
+
+def validate_fee_bps(fee_bps: int):
+	assert fee_bps == ZERO_TRADE_FEE_BPS or fee_bps == DEFAULT_TRADE_FEE_BPS, 'SNAKX: INVALID_FEE_BPS'
+
+
+def trade_fee_bps_for(account: str):
+	return ZERO_TRADE_FEE_BPS if zero_fee_signers[account] else DEFAULT_TRADE_FEE_BPS
+
+
+def current_trade_fee_bps():
+	return trade_fee_bps_for(ctx.signer)
 
 
 def canonicalize_tokens(tokenA: str, tokenB: str):
@@ -88,6 +110,18 @@ def quote(amountA: float, reserveA: float, reserveB: float):
 def set_fee_on_transfer_token(token: str, enabled: bool):
 	assert ctx.caller == owner.get(), 'SNAKX: FORBIDDEN'
 	fee_on_transfer_tokens[token] = enabled
+
+
+@export
+def set_zero_fee_trader(account: str, enabled: bool):
+	assert ctx.caller == owner.get(), 'SNAKX: FORBIDDEN'
+	zero_fee_signers[account] = enabled
+	ZeroFeeTraderUpdated({"account": account, "enabled": enabled})
+
+
+@export
+def getTradeFeeBps(account: str = None):
+	return trade_fee_bps_for(ctx.signer if account is None else account)
 
 
 def internal_addLiquidity(
@@ -189,18 +223,24 @@ def removeLiquidity(
 
 	return actual_amountA, actual_amountB
 	
-@export
-def getAmountOut(amountIn: float, reserveIn: float, reserveOut: float):
+def get_amount_out_for_fee(amountIn: float, reserveIn: float, reserveOut: float, fee_bps: int):
+	validate_fee_bps(fee_bps)
 	assert amountIn > 0, 'SNAKX: INSUFFICIENT_INPUT_AMOUNT'
 	assert reserveIn > 0 and reserveOut > 0, 'SNAKX: INSUFFICIENT_LIQUIDITY'
-	amountInWithFee = amountIn * 0.997;
+	amountInWithFee = amountIn * ((10000 - fee_bps) / 10000);
 	numerator = amountInWithFee * reserveOut;
 	denominator = reserveIn + amountInWithFee;
 	return numerator / denominator
 #(x*997*y)/(z*1000+997*x) = (x*0.997*y)/(z+0.997*x)
-	
+
+
 @export
-def getAmountsOut(amountIn: float, src: str, path: list):
+def getAmountOut(amountIn: float, reserveIn: float, reserveOut: float, feeBps: int = DEFAULT_TRADE_FEE_BPS):
+	return get_amount_out_for_fee(amountIn, reserveIn, reserveOut, feeBps)
+
+
+def get_amounts_out_for_fee(amountIn: float, src: str, path: list, fee_bps: int):
+	validate_fee_bps(fee_bps)
 	assert len(path) >= 1, 'SNAKX: INVALID_PATH'
 	pairs = PAIRS()
 	amounts = [amountIn]
@@ -217,9 +257,13 @@ def getAmountsOut(amountIn: float, src: str, path: list):
 		
 		src = pairsmap[path[x], "token1"] if order else tok0
 			
-		amounts.append(getAmountOut(amounts[x], reserveIn, reserveOut))
+		amounts.append(get_amount_out_for_fee(amounts[x], reserveIn, reserveOut, fee_bps))
 		
 	return amounts
+
+@export
+def getAmountsOut(amountIn: float, src: str, path: list):
+	return get_amounts_out_for_fee(amountIn, src, path, current_trade_fee_bps())
 
 @export
 def swapExactTokenForToken(
@@ -233,11 +277,12 @@ def swapExactTokenForToken(
 	assert now < deadline, 'SNAKX: EXPIRED'
 	pairs = PAIRS()
 	assert_plain_path(src, [pair])
+	fee_bps = current_trade_fee_bps()
 	reserve0, reserve1, ignore = pairs.getReserves(pair)
 	order = (src == pairsmap[pair, "token0"])
 	if(not order):
 		reserve0, reserve1 = reserve1, reserve0
-	amount = getAmountOut(amountIn, reserve0, reserve1)
+	amount = get_amount_out_for_fee(amountIn, reserve0, reserve1, fee_bps)
 	assert amount >= amountOutMin, 'SNAKX: INSUFFICIENT_OUTPUT_AMOUNT'
 	actual_amount_in = transfer_into_pairs(src, ctx.caller, amountIn)
 	if order:
@@ -246,7 +291,7 @@ def swapExactTokenForToken(
 		pairs.sync2(pair, 0, actual_amount_in)
 	out0 = 0 if order else amount
 	out1 = amount if order else 0
-	pairs.swap(pair, out0, out1, to)
+	pairs.routerSwap(pair, out0, out1, to, fee_bps)
 	
 	return amount
 	
@@ -261,6 +306,7 @@ def swapExactTokenForTokenSupportingFeeOnTransferTokens(
 ):
 	assert now < deadline, 'SNAKX: EXPIRED'
 	pairs = PAIRS()
+	fee_bps = current_trade_fee_bps()
 	
 	TOK0 = pairsmap[pair, "token0"]
 	
@@ -283,18 +329,18 @@ def swapExactTokenForTokenSupportingFeeOnTransferTokens(
 	if(not order):
 		reserve0, reserve1 = reserve1, reserve0
 	
-	amount = getAmountOut(sur0 if order else sur1, reserve0, reserve1)
+	amount = get_amount_out_for_fee(sur0 if order else sur1, reserve0, reserve1, fee_bps)
 	
 	out0 = 0 if order else amount
 	out1 = amount if order else 0
-	pairs.swap(pair, out0, out1, to)
+	pairs.routerSwap(pair, out0, out1, to, fee_bps)
 	
 	rv = t.balance_of(to) - balanceBefore
 	assert rv >= amountOutMin, "SNAKX: INSUFFICIENT_OUTPUT_AMOUNT"
 	return rv
 	
 	
-def internal_swap(amounts: list[float], src: str, path: list[int], to: str):
+def internal_swap(amounts: list[float], src: str, path: list[int], to: str, fee_bps: int):
 	assert len(amounts) == len(path) + 1, 'SNAKX: INVALID_LENGTHS'
 	pairs = PAIRS()
 	
@@ -308,7 +354,7 @@ def internal_swap(amounts: list[float], src: str, path: list[int], to: str):
 		
 		src = pairsmap[path[x], "token1"] if order else tok0
 			
-		pairs.swapToPair(path[x], out0, out1, path[x+1])
+		pairs.routerSwapToPair(path[x], out0, out1, path[x+1], fee_bps)
 		
 		
 	tok0 = pairsmap[path[-1], "token0"]
@@ -317,9 +363,9 @@ def internal_swap(amounts: list[float], src: str, path: list[int], to: str):
 	out0 = 0 if order else amounts[-1]
 	out1 = amounts[-1] if order else 0
 			
-	pairs.swap(path[-1], out0, out1, to)
+	pairs.routerSwap(path[-1], out0, out1, to, fee_bps)
 	
-def internal_swap_fee(amounts: list[float], amountOutMin: float, src: str, path: list[int], to: str):
+def internal_swap_fee(amounts: list[float], amountOutMin: float, src: str, path: list[int], to: str, fee_bps: int):
 	assert len(amounts) == len(path) + 1, 'SNAKX: INVALID_LENGTHS'
 	pairs = PAIRS()
 	
@@ -333,7 +379,7 @@ def internal_swap_fee(amounts: list[float], amountOutMin: float, src: str, path:
 		
 		src = pairsmap[path[x], "token1"] if order else tok0
 			
-		pairs.swapToPair(path[x], out0, out1, path[x+1])
+		pairs.routerSwapToPair(path[x], out0, out1, path[x+1], fee_bps)
 		
 		
 	tok0 = pairsmap[path[-1], "token0"]
@@ -347,7 +393,7 @@ def internal_swap_fee(amounts: list[float], amountOutMin: float, src: str, path:
 	out0 = 0 if order else amounts[-1]
 	out1 = amounts[-1] if order else 0
 			
-	pairs.swap(path[-1], out0, out1, to)
+	pairs.routerSwap(path[-1], out0, out1, to, fee_bps)
 	
 	rv = t.balance_of(to) - balanceBefore
 	assert rv >= amountOutMin, "SNAKX: INSUFFICIENT_OUTPUT_AMOUNT"
@@ -368,6 +414,7 @@ def swapExactTokensForTokensSupportingFeeOnTransferTokens(
 	assert now < deadline, 'SNAKX: EXPIRED'
 	pairs = PAIRS()
 	assert_supported_fee_path(src, path)
+	fee_bps = current_trade_fee_bps()
 	
 	TOK0 = pairsmap[path[0], "token0"]
 	
@@ -381,11 +428,11 @@ def swapExactTokensForTokensSupportingFeeOnTransferTokens(
 	
 	sur0, sur1 = pairs.getSurplus(path[0])
 	
-	amounts = getAmountsOut(sur0 if order else sur1, src, path)
+	amounts = get_amounts_out_for_fee(sur0 if order else sur1, src, path, fee_bps)
 	
 	assert amounts[-1] >= amountOutMin, 'SNAKX: INSUFFICIENT_OUTPUT_AMOUNT'
 	
-	return internal_swap_fee(amounts, amountOutMin, src, path, to)
+	return internal_swap_fee(amounts, amountOutMin, src, path, to, fee_bps)
 	
 @export
 def swapExactTokensForTokens(
@@ -399,8 +446,9 @@ def swapExactTokensForTokens(
 	assert now < deadline, 'SNAKX: EXPIRED'
 	pairs = PAIRS()
 	assert_plain_path(src, path)
+	fee_bps = current_trade_fee_bps()
 	
-	amounts = getAmountsOut(amountIn, src, path)
+	amounts = get_amounts_out_for_fee(amountIn, src, path, fee_bps)
 	assert amounts[-1] >= amountOutMin, 'SNAKX: INSUFFICIENT_OUTPUT_AMOUNT'
 
 	actual_amount_in = transfer_into_pairs(src, ctx.caller, amountIn)
@@ -408,6 +456,6 @@ def swapExactTokensForTokens(
 		pairs.sync2(path[0], actual_amount_in, 0)
 	else:
 		pairs.sync2(path[0], 0, actual_amount_in)
-	internal_swap(amounts, src, path, to)
+	internal_swap(amounts, src, path, to, fee_bps)
 	
 	return amounts[-1]

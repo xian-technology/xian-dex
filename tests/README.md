@@ -18,8 +18,10 @@ Current coverage:
 - protocol fee (`feeTo`) minting on growth
 - guarded multi-hop fee-on-transfer routing
 - fee-on-transfer token flag permissions and toggling
+- zero-fee trader permissions, toggling, and better quote/execution outcomes
 - plain-route rejection for flagged fee-on-transfer tokens
 
 Still worth adding:
 
-- LP token transfer edge cases beyond router usage
+- deeper economic simulations around feeTo and fee-tier configuration
+- more scenario coverage around large route sequences and slippage bounds

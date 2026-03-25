@@ -31,6 +31,10 @@ logic, and convenience helpers.
   bridge tokens must be flagged with `set_fee_on_transfer_token(...)` and are
   then rejected in supporting multi-hop routes.
 - Fee-on-transfer token flags are router-owner controlled.
+- Router-owner controlled zero-fee signer accounts can be enabled with
+  `set_zero_fee_trader(...)` for market makers or other approved flow.
+- Zero-fee routing is signer-based and only applies through the router. Direct
+  pair swaps remain on the standard 30 bps fee path.
 - Plain swap routes reject flagged fee-on-transfer tokens and require the
   supporting-fee router path instead.
 

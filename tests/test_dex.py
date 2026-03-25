@@ -108,10 +108,11 @@ class TestDexRouter(unittest.TestCase):
         self.operator = "sys"
         self.lp = "a" * 64
         self.trader = "b" * 64
+        self.market_maker = "c" * 64
         self.now = Datetime(2026, 1, 1)
         self.deadline = Datetime(2026, 1, 2)
 
-        for account in (self.lp, self.trader):
+        for account in (self.lp, self.trader, self.market_maker):
             self.currency.transfer(amount=5000, to=account, signer=self.operator)
             self.plain_mid.transfer(amount=5000, to=account, signer=self.operator)
             self.plain_out.transfer(amount=5000, to=account, signer=self.operator)
@@ -715,6 +716,122 @@ class TestDexRouter(unittest.TestCase):
         )
         self.assertFalse(
             self.client.get_var("con_dex", "fee_on_transfer_tokens", ["con_tax_token"])
+        )
+
+    def test_set_zero_fee_trader_is_owner_only_and_toggleable(self):
+        self.assertEqual(self.dex.getTradeFeeBps(account=self.market_maker, signer=self.operator), 30)
+
+        with self.assertRaises(AssertionError):
+            self.dex.set_zero_fee_trader(
+                account=self.market_maker,
+                enabled=True,
+                signer=self.trader,
+            )
+
+        self.dex.set_zero_fee_trader(
+            account=self.market_maker,
+            enabled=True,
+            signer=self.operator,
+        )
+        self.assertEqual(self.dex.getTradeFeeBps(account=self.market_maker, signer=self.operator), 0)
+        self.assertEqual(self.dex.getTradeFeeBps(signer=self.market_maker), 0)
+
+        self.dex.set_zero_fee_trader(
+            account=self.market_maker,
+            enabled=False,
+            signer=self.operator,
+        )
+        self.assertEqual(self.dex.getTradeFeeBps(account=self.market_maker, signer=self.operator), 30)
+
+    def test_zero_fee_trader_gets_better_quote_and_execution(self):
+        standard_pair = self.pairs.createPair(
+            tokenA="con_plain_mid",
+            tokenB="currency",
+            signer=self.operator,
+        )
+        zero_fee_pair = self.pairs.createPair(
+            tokenA="con_plain_out",
+            tokenB="currency",
+            signer=self.operator,
+        )
+
+        self.dex.addLiquidity(
+            tokenA="currency",
+            tokenB="con_plain_mid",
+            amountADesired=1000,
+            amountBDesired=1000,
+            amountAMin=1000,
+            amountBMin=1000,
+            to=self.lp,
+            deadline=self.deadline,
+            signer=self.lp,
+            environment={"now": self.now},
+        )
+        self.dex.addLiquidity(
+            tokenA="currency",
+            tokenB="con_plain_out",
+            amountADesired=1000,
+            amountBDesired=1000,
+            amountAMin=1000,
+            amountBMin=1000,
+            to=self.lp,
+            deadline=self.deadline,
+            signer=self.lp,
+            environment={"now": self.now},
+        )
+
+        standard_quote = self.dex.getAmountsOut(
+            amountIn=100,
+            src="currency",
+            path=[standard_pair],
+            signer=self.trader,
+        )[-1]
+
+        self.dex.set_zero_fee_trader(
+            account=self.market_maker,
+            enabled=True,
+            signer=self.operator,
+        )
+        zero_fee_quote = self.dex.getAmountsOut(
+            amountIn=100,
+            src="currency",
+            path=[zero_fee_pair],
+            signer=self.market_maker,
+        )[-1]
+        self.assertGreater(zero_fee_quote, standard_quote)
+
+        standard_before = self.plain_mid.balance_of(address=self.trader, signer=self.operator)
+        zero_fee_before = self.plain_out.balance_of(address=self.market_maker, signer=self.operator)
+
+        standard_output = self.dex.swapExactTokenForToken(
+            amountIn=100,
+            amountOutMin=1,
+            pair=standard_pair,
+            src="currency",
+            to=self.trader,
+            deadline=self.deadline,
+            signer=self.trader,
+            environment={"now": self.now},
+        )
+        zero_fee_output = self.dex.swapExactTokenForToken(
+            amountIn=100,
+            amountOutMin=1,
+            pair=zero_fee_pair,
+            src="currency",
+            to=self.market_maker,
+            deadline=self.deadline,
+            signer=self.market_maker,
+            environment={"now": self.now},
+        )
+
+        self.assertGreater(zero_fee_output, standard_output)
+        self.assertAmountEqual(
+            self.plain_mid.balance_of(address=self.trader, signer=self.operator) - standard_before,
+            standard_output,
+        )
+        self.assertAmountEqual(
+            self.plain_out.balance_of(address=self.market_maker, signer=self.operator) - zero_fee_before,
+            zero_fee_output,
         )
 
 
