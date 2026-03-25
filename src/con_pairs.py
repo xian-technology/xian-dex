@@ -153,7 +153,7 @@ def liqTransfer(pair: int, amount: float, to: str):
     
 @export
 def liqApprove(pair: int, amount: float, to: str):
-	assert amount > 0, 'Cannot send negative balances!'
+	assert amount >= 0, 'Cannot send negative balances!'
 	pairs[pair, "balances", ctx.caller, to] = amount
 	
 	ApproveLiq({"pair": pair, "from": ctx.caller, "to": to, "amount": amount})

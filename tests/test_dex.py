@@ -94,11 +94,15 @@ class TestDexRouter(unittest.TestCase):
             self.client.submit(f.read(), name="con_dex")
 
         self.client.submit(PLAIN_TOKEN, name="currency")
+        self.client.submit(PLAIN_TOKEN, name="con_plain_mid")
+        self.client.submit(PLAIN_TOKEN, name="con_plain_out")
         self.client.submit(TAXED_TOKEN, name="con_tax_token")
 
         self.pairs = self.client.get_contract("con_pairs")
         self.dex = self.client.get_contract("con_dex")
         self.currency = self.client.get_contract("currency")
+        self.plain_mid = self.client.get_contract("con_plain_mid")
+        self.plain_out = self.client.get_contract("con_plain_out")
         self.tax = self.client.get_contract("con_tax_token")
 
         self.operator = "sys"
@@ -109,8 +113,12 @@ class TestDexRouter(unittest.TestCase):
 
         for account in (self.lp, self.trader):
             self.currency.transfer(amount=5000, to=account, signer=self.operator)
+            self.plain_mid.transfer(amount=5000, to=account, signer=self.operator)
+            self.plain_out.transfer(amount=5000, to=account, signer=self.operator)
             self.tax.transfer(amount=5000, to=account, signer=self.operator)
             self.currency.approve(amount=5000, to="con_dex", signer=account)
+            self.plain_mid.approve(amount=5000, to="con_dex", signer=account)
+            self.plain_out.approve(amount=5000, to="con_dex", signer=account)
             self.tax.approve(amount=5000, to="con_dex", signer=account)
 
     def tearDown(self):
@@ -298,6 +306,161 @@ class TestDexRouter(unittest.TestCase):
         _, pair_id = self.bootstrap_pair()
         with self.assertRaises(AssertionError):
             self.pairs.sync2(pair=pair_id, amount0=1, amount1=0, signer=self.operator)
+
+    def test_multi_hop_path_validation_and_execution(self):
+        pair_ab = self.pairs.createPair(
+            tokenA="con_plain_mid",
+            tokenB="currency",
+            signer=self.operator,
+        )
+        pair_bc = self.pairs.createPair(
+            tokenA="con_plain_mid",
+            tokenB="con_plain_out",
+            signer=self.operator,
+        )
+        disconnected = self.pairs.createPair(
+            tokenA="con_plain_out",
+            tokenB="con_tax_token",
+            signer=self.operator,
+        )
+
+        self.dex.addLiquidity(
+            tokenA="currency",
+            tokenB="con_plain_mid",
+            amountADesired=1000,
+            amountBDesired=1000,
+            amountAMin=1000,
+            amountBMin=1000,
+            to=self.lp,
+            deadline=self.deadline,
+            signer=self.lp,
+            environment={"now": self.now},
+        )
+        self.dex.addLiquidity(
+            tokenA="con_plain_mid",
+            tokenB="con_plain_out",
+            amountADesired=1000,
+            amountBDesired=1000,
+            amountAMin=1000,
+            amountBMin=1000,
+            to=self.lp,
+            deadline=self.deadline,
+            signer=self.lp,
+            environment={"now": self.now},
+        )
+
+        quoted = self.dex.getAmountsOut(
+            amountIn=100,
+            src="currency",
+            path=[pair_ab, pair_bc],
+            signer=self.trader,
+        )
+        self.assertEqual(len(quoted), 3)
+        self.assertGreater(quoted[-1], ContractingDecimal("0"))
+
+        out_before = self.plain_out.balance_of(address=self.trader, signer=self.operator)
+        output = self.dex.swapExactTokensForTokens(
+            amountIn=100,
+            amountOutMin=1,
+            path=[pair_ab, pair_bc],
+            src="currency",
+            to=self.trader,
+            deadline=self.deadline,
+            signer=self.trader,
+            environment={"now": self.now},
+        )
+        self.assertAmountEqual(
+            self.plain_out.balance_of(address=self.trader, signer=self.operator) - out_before,
+            output,
+        )
+
+        with self.assertRaises(AssertionError):
+            self.dex.getAmountsOut(
+                amountIn=100,
+                src="currency",
+                path=[pair_ab, disconnected],
+                signer=self.trader,
+            )
+
+    def test_liq_approve_can_clear_allowance(self):
+        _, pair_id = self.bootstrap_pair()
+        added = self.dex.addLiquidity(
+            tokenA="currency",
+            tokenB="con_tax_token",
+            amountADesired=1000,
+            amountBDesired=1000,
+            amountAMin=900,
+            amountBMin=900,
+            to=self.lp,
+            deadline=self.deadline,
+            signer=self.lp,
+            environment={"now": self.now},
+        )
+        liquidity = added[2]
+
+        self.pairs.liqApprove(pair=pair_id, amount=liquidity, to="con_dex", signer=self.lp)
+        self.pairs.liqApprove(pair=pair_id, amount=0, to="con_dex", signer=self.lp)
+
+        with self.assertRaises(AssertionError):
+            self.dex.removeLiquidity(
+                tokenA="currency",
+                tokenB="con_tax_token",
+                liquidity=liquidity,
+                amountAMin=1,
+                amountBMin=1,
+                to=self.lp,
+                deadline=self.deadline,
+                signer=self.lp,
+                environment={"now": self.now},
+            )
+
+    def test_protocol_fee_mints_liquidity_to_owner(self):
+        pair = self.pairs.createPair(
+            tokenA="con_plain_mid",
+            tokenB="currency",
+            signer=self.operator,
+        )
+        self.dex.addLiquidity(
+            tokenA="currency",
+            tokenB="con_plain_mid",
+            amountADesired=1000,
+            amountBDesired=1000,
+            amountAMin=1000,
+            amountBMin=1000,
+            to=self.lp,
+            deadline=self.deadline,
+            signer=self.lp,
+            environment={"now": self.now},
+        )
+
+        owner_lp_before = self.client.get_var("con_pairs", "pairs", [pair, "balances", "sys"]) or 0
+
+        self.dex.swapExactTokenForToken(
+            amountIn=100,
+            amountOutMin=1,
+            pair=pair,
+            src="currency",
+            to=self.trader,
+            deadline=self.deadline,
+            signer=self.trader,
+            environment={"now": self.now},
+        )
+
+        self.dex.addLiquidity(
+            tokenA="currency",
+            tokenB="con_plain_mid",
+            amountADesired=100,
+            amountBDesired=100,
+            amountAMin=1,
+            amountBMin=1,
+            to=self.lp,
+            deadline=self.deadline,
+            signer=self.lp,
+            environment={"now": self.now},
+        )
+
+        owner_lp_after = self.client.get_var("con_pairs", "pairs", [pair, "balances", "sys"]) or 0
+        self.assertGreater(owner_lp_after, owner_lp_before)
 
 
 if __name__ == "__main__":

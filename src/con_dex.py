@@ -32,6 +32,17 @@ def transfer_into_pairs(token: str, src: str, amount: float):
 	safeTransferFrom(token, src, DEX_PAIRS, amount)
 	return actual_balance(token, DEX_PAIRS) - balance_before
 
+
+def validate_path(src: str, path: list):
+	current = src
+	for pair in path:
+		token0 = pairsmap[pair, "token0"]
+		token1 = pairsmap[pair, "token1"]
+		assert token0 is not None and token1 is not None, 'SNAKX: INVALID_PAIR'
+		assert current == token0 or current == token1, 'SNAKX: INVALID_PATH'
+		current = token1 if current == token0 else token0
+	return current
+
 def safeTransferFrom(token: str, src: str, to: str, value: float):
 	t = importlib.import_module(token)
 	assert importlib.enforce_interface(t, token_interface)
@@ -157,6 +168,7 @@ def getAmountsOut(amountIn: float, src: str, path: list):
 	assert len(path) >= 1, 'SNAKX: INVALID_PATH'
 	pairs = PAIRS()
 	amounts = [amountIn]
+	validate_path(src, path)
 	
 	for x in range(0, len(path)):
 		tok0 = pairsmap[path[x], "token0"]

@@ -12,9 +12,11 @@ Current coverage:
 - single-path fee-on-transfer swap return values
 - unsolicited token transfers not being credited to a pair
 - router-only pair crediting
+- multi-hop routing and invalid-path rejection
+- LP allowance clearing
+- protocol fee (`feeTo`) minting on growth
 
 Still worth adding:
 
-- multi-hop routing
-- LP token transfer/approval edge cases
-- protocol fee (`feeTo`) behavior
+- fee-on-transfer behavior across multi-hop routes
+- LP token transfer edge cases beyond router usage

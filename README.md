@@ -24,6 +24,8 @@ logic, and convenience helpers.
   matters for fee-on-transfer tokens.
 - Pair balance crediting is router-driven; unsolicited token transfers into
   `con_pairs` are not automatically attributed to any pair.
+- Package-local tests now cover protocol-fee minting, multi-hop routing, and
+  router-mediated LP allowance flows.
 
 ## Validation
 
