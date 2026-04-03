@@ -103,7 +103,7 @@ def safeTransferFrom(token: str, src: str, to: str, value: float):
 def quote(amountA: float, reserveA: float, reserveB: float):
 	assert amountA > 0, 'SNAKX: INSUFFICIENT_AMOUNT'
 	assert reserveA > 0 and reserveB > 0, 'SNAKX: INSUFFICIENT_LIQUIDITY'
-	return (amountA * reserveB) / reserveA;
+	return (amountA * reserveB) / reserveA
 
 
 @export
@@ -227,9 +227,9 @@ def get_amount_out_for_fee(amountIn: float, reserveIn: float, reserveOut: float,
 	validate_fee_bps(fee_bps)
 	assert amountIn > 0, 'SNAKX: INSUFFICIENT_INPUT_AMOUNT'
 	assert reserveIn > 0 and reserveOut > 0, 'SNAKX: INSUFFICIENT_LIQUIDITY'
-	amountInWithFee = amountIn * ((10000 - fee_bps) / 10000);
-	numerator = amountInWithFee * reserveOut;
-	denominator = reserveIn + amountInWithFee;
+	amountInWithFee = amountIn * ((10000 - fee_bps) / 10000)
+	numerator = amountInWithFee * reserveOut
+	denominator = reserveIn + amountInWithFee
 	return numerator / denominator
 #(x*997*y)/(z*1000+997*x) = (x*0.997*y)/(z+0.997*x)
 

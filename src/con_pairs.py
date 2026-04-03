@@ -339,7 +339,7 @@ def internal_update(pair: int, balance0: float, balance1: float):
 	pairs[pair, "reserve0"] = balance0
 	pairs[pair, "reserve1"] = balance1
 	pairs[pair, "blockTimestampLast"] = now
-	Sync({"pair":pair,"reserve0":balance0,"reserve1":balance1});
+	Sync({"pair":pair,"reserve0":balance0,"reserve1":balance1})
 #emit
 
 def internal_mintFee(pair: int, reserve0: float, reserve1: float):
@@ -347,14 +347,14 @@ def internal_mintFee(pair: int, reserve0: float, reserve1: float):
 	kLast = pairs[pair, "kLast"]
 	if (feeOn):
 		if (kLast != 0):
-			rootK = (reserve0 * reserve1) ** 0.5;
-			rootKLast = kLast ** 0.5;
+			rootK = (reserve0 * reserve1) ** 0.5
+			rootKLast = kLast ** 0.5
 			if (rootK > rootKLast):
-				numerator = pairs[pair, "totalSupply"] * (rootK - rootKLast);
-				denominator = rootK * 5 + rootKLast;
-				liquidity = numerator / denominator;
+				numerator = pairs[pair, "totalSupply"] * (rootK - rootKLast)
+				denominator = rootK * 5 + rootKLast
+				liquidity = numerator / denominator
 				if (liquidity > 0):
-					internal_mint(pair, feeTo.get(), liquidity);
+					internal_mint(pair, feeTo.get(), liquidity)
 	elif(kLast != 0): 
 		pairs[pair, "kLast"] = 0.0
 	return feeOn
@@ -429,21 +429,21 @@ def burn(pair: int, to: str):
 
 	liquidity = pairs[pair, "balances", ctx.this]
 	
-	feeOn = internal_mintFee(pair, reserve0, reserve1);
+	feeOn = internal_mintFee(pair, reserve0, reserve1)
 	totalSupply = pairs[pair, "totalSupply"]
 	amount0 = (liquidity * balance0) / totalSupply
 	amount1 = (liquidity * balance1) / totalSupply
 	assert amount0 > 0 and amount1 > 0, 'SNAKX: INSUFFICIENT_LIQUIDITY_BURNED'
 	internal_burn(pair, ctx.this, liquidity)
-	safeTransferFromPair(pair, token0, to, amount0);
-	safeTransferFromPair(pair, token1, to, amount1);
+	safeTransferFromPair(pair, token0, to, amount0)
+	safeTransferFromPair(pair, token1, to, amount1)
 	
 	balance0 = pairs[pair, "balance0"]
 	balance1 = pairs[pair, "balance1"]
 	
 
 	#internal_update(pair, balance0, balance1, UNS_reserve0, UNS_reserve1);
-	internal_update(pair, balance0, balance1);
+	internal_update(pair, balance0, balance1)
 	sync(pair)
 	if (feeOn):
 		pairs[pair, "kLast"] = balance0 * balance1
@@ -476,7 +476,7 @@ def mint(pair: int, to: str):
 	
 	liquidity = 0
 	if (totalSupply == 0):
-		liquidity = ((amount0 * amount1) ** 0.5) - MINIMUM_LIQUIDITY;
+		liquidity = ((amount0 * amount1) ** 0.5) - MINIMUM_LIQUIDITY
 		internal_mint(pair, "DEAD", MINIMUM_LIQUIDITY) # permanently lock the first MINIMUM_LIQUIDITY tokens
 	else:
 		liquidity = min((amount0 * totalSupply) / reserve0, (amount1 * totalSupply) / reserve1)
