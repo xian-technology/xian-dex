@@ -75,12 +75,51 @@ balances = Hash(default_value=0.0)
 LOCK = Variable()
 
 
-token_interface = [
-    importlib.Func('transfer_from', args=('amount', 'to', 'main_account')),
-    importlib.Func('transfer', args=('amount', 'to')),
-    importlib.Func('balance_of', args=('address',)),
-    #importlib.Var('balances', Hash),
-]
+REQUIRED_TOKEN_EXPORTS = ("transfer_from", "transfer", "balance_of")
+
+
+def assert_token_contract(token: str):
+	for export_name in REQUIRED_TOKEN_EXPORTS:
+		assert importlib.has_export(token, export_name), "SNAKX: INVALID_TOKEN"
+
+
+def load_token(token: str):
+	assert_token_contract(token)
+	return importlib.import_module(token)
+
+
+def token_precision(token: str):
+	if not importlib.has_export(token, "get_metadata"):
+		return None
+	metadata = importlib.import_module(token).get_metadata()
+	if metadata is None:
+		return None
+	precision = metadata["precision"]
+	if isinstance(precision, int) and precision >= 0:
+		return precision
+	return None
+
+
+def token_scale(precision: int):
+	scale = 1
+	for step in range(0, precision):
+		scale *= 10
+	return scale
+
+
+def normalize_token_amount(token: str, amount: float, round_up: bool = False):
+	assert amount >= 0, "SNAKX: NEGATIVE_AMOUNT"
+	precision = token_precision(token)
+	if precision is None:
+		return amount
+	scale = token_scale(precision)
+	scaled = amount * scale
+	normalized = int(scaled)
+	if round_up and normalized < scaled:
+		normalized += 1
+	if precision == 0:
+		return normalized
+	return normalized / scale
 
 @construct
 def constructor():
@@ -106,11 +145,9 @@ def createPair(tokenA: str, tokenB: str):
 	
 	
 	
-	tA = importlib.import_module(tokenA)
-	assert importlib.enforce_interface(tA, token_interface), 'SNAKX: NO_TOKA'
+	assert_token_contract(tokenA)
 	
-	tB = importlib.import_module(tokenB)
-	assert importlib.enforce_interface(tB, token_interface), 'SNAKX: NO_TOKB'
+	assert_token_contract(tokenB)
 	
 	
 	p_num = pairs_num.get() + 1
@@ -173,9 +210,9 @@ def liqTransfer_from(pair: int, amount: float, to: str, main_account: str):
 
 
 def safeTransferFromPair(pair: int, token: str, to: str, value: float):
+	value = normalize_token_amount(token, value)
 	assert value >= 0 and value <= MAXIMUM_BALANCE, 'p2a Invalid value!'
-	t = importlib.import_module(token)
-	assert importlib.enforce_interface(t, token_interface)
+	t = load_token(token)
 	#tok_balances = ForeignHash(foreign_contract=token, foreign_name='balances')
 	prev_balance = t.balance_of(ctx.this)
 	
@@ -261,8 +298,7 @@ def sync(pair: int):
 	tokenA = pairs[pair, "token0"]
 	tokenB = pairs[pair, "token1"]
 	
-	tA = importlib.import_module(tokenA)
-	assert importlib.enforce_interface(tA, token_interface)
+	tA = load_token(tokenA)
 	#hashA = ForeignHash(foreign_contract=tokenA, foreign_name='balances')
 	#balA = hashA[ctx.this]
 	
@@ -270,8 +306,7 @@ def sync(pair: int):
 	if balA == None:
 		balA = 0.0
 	
-	tB = importlib.import_module(tokenB)
-	assert importlib.enforce_interface(tB, token_interface)
+	tB = load_token(tokenB)
 	#hashB = ForeignHash(foreign_contract=tokenB, foreign_name='balances')
 	#balB = hashB[ctx.this]
 	
@@ -292,8 +327,7 @@ def sync2(pair: int, amount0: float = 0.0, amount1: float = 0.0):
 	tokenA = pairs[pair, "token0"]
 	tokenB = pairs[pair, "token1"]
 	
-	tA = importlib.import_module(tokenA)
-	assert importlib.enforce_interface(tA, token_interface)
+	tA = load_token(tokenA)
 	#hashA = ForeignHash(foreign_contract=tokenA, foreign_name='balances')
 	#balA = hashA[ctx.this]
 	
@@ -301,8 +335,7 @@ def sync2(pair: int, amount0: float = 0.0, amount1: float = 0.0):
 	if balA == None:
 		balA = 0.0
 	
-	tB = importlib.import_module(tokenB)
-	assert importlib.enforce_interface(tB, token_interface)
+	tB = load_token(tokenB)
 	#hashB = ForeignHash(foreign_contract=tokenB, foreign_name='balances')
 	#balB = hashB[ctx.this]
 	
@@ -380,6 +413,10 @@ def swap_impl(pair: int, amount0Out: float, amount1Out: float, to: Any, fee_bps:
 	assert amount0Out < reserve0 and amount1Out < reserve1, 'SNAKX: INSUFFICIENT_LIQUIDITY'
 	token0 = pairs[pair, "token0"]
 	token1 = pairs[pair, "token1"]
+	amount0Out = normalize_token_amount(token0, amount0Out)
+	amount1Out = normalize_token_amount(token1, amount1Out)
+	assert amount0Out > 0 or amount1Out > 0, 'SNAKX: INSUFFICIENT_OUTPUT_AMOUNT'
+	assert amount0Out < reserve0 and amount1Out < reserve1, 'SNAKX: INSUFFICIENT_LIQUIDITY'
 	if not to_pair:
 		assert to != token0 and to != token1, 'SNAKX: INVALID_TO'
 	
@@ -431,8 +468,8 @@ def burn(pair: int, to: str):
 	
 	feeOn = internal_mintFee(pair, reserve0, reserve1)
 	totalSupply = pairs[pair, "totalSupply"]
-	amount0 = (liquidity * balance0) / totalSupply
-	amount1 = (liquidity * balance1) / totalSupply
+	amount0 = normalize_token_amount(token0, (liquidity * balance0) / totalSupply)
+	amount1 = normalize_token_amount(token1, (liquidity * balance1) / totalSupply)
 	assert amount0 > 0 and amount1 > 0, 'SNAKX: INSUFFICIENT_LIQUIDITY_BURNED'
 	internal_burn(pair, ctx.this, liquidity)
 	safeTransferFromPair(pair, token0, to, amount0)

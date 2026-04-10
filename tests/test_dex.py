@@ -6,8 +6,12 @@ from xian_runtime_types.decimal import ContractingDecimal
 from xian_runtime_types.time import Datetime
 
 ROOT = Path(__file__).resolve().parents[1]
+CONTRACTS_ROOT = ROOT.parent
 DEX_PAIRS_PATH = ROOT / "src" / "con_pairs.py"
 DEX_ROUTER_PATH = ROOT / "src" / "con_dex.py"
+SHIELDED_NOTE_TOKEN_PATH = (
+    CONTRACTS_ROOT / "shielded-note-token" / "src" / "con_shielded_note_token.py"
+)
 
 PLAIN_TOKEN = """
 balances = Hash(default_value=0)
@@ -82,6 +86,12 @@ def balance_of(address: str):
     return balances[address]
 """
 
+ZK_REGISTRY_STUB = """
+@export
+def get_vk_info(vk_id: str):
+    return None
+"""
+
 
 class TestDexRouter(unittest.TestCase):
     def setUp(self):
@@ -142,6 +152,53 @@ class TestDexRouter(unittest.TestCase):
         pair_id = self.pairs.pairFor(
             tokenA="con_tax_token",
             tokenB="currency",
+            signer=self.operator,
+        )
+        return pair, pair_id
+
+    def bootstrap_shielded_public_tokens(self):
+        self.client.submit(ZK_REGISTRY_STUB, name="zk_registry")
+        with SHIELDED_NOTE_TOKEN_PATH.open() as f:
+            shielded_source = f.read()
+
+        self.client.submit(
+            shielded_source,
+            name="con_private_a",
+            constructor_args={
+                "token_name": "Private A",
+                "token_symbol": "PRA",
+                "operator_address": self.operator,
+            },
+            signer=self.operator,
+        )
+        self.client.submit(
+            shielded_source,
+            name="con_private_b",
+            constructor_args={
+                "token_name": "Private B",
+                "token_symbol": "PRB",
+                "operator_address": self.operator,
+            },
+            signer=self.operator,
+        )
+
+        self.private_a = self.client.get_contract("con_private_a")
+        self.private_b = self.client.get_contract("con_private_b")
+
+        for account in (self.lp, self.trader, self.market_maker):
+            self.private_a.mint_public(amount=5000, to=account, signer=self.operator)
+            self.private_b.mint_public(amount=5000, to=account, signer=self.operator)
+            self.private_a.approve(amount=5000, to="con_dex", signer=account)
+            self.private_b.approve(amount=5000, to="con_dex", signer=account)
+
+        pair = self.pairs.createPair(
+            tokenA="con_private_a",
+            tokenB="con_private_b",
+            signer=self.operator,
+        )
+        pair_id = self.pairs.pairFor(
+            tokenA="con_private_a",
+            tokenB="con_private_b",
             signer=self.operator,
         )
         return pair, pair_id
@@ -832,6 +889,92 @@ class TestDexRouter(unittest.TestCase):
         self.assertAmountEqual(
             self.plain_out.balance_of(address=self.market_maker, signer=self.operator) - zero_fee_before,
             zero_fee_output,
+        )
+
+    def test_shielded_public_token_pair_supports_liquidity_swap_and_remove(self):
+        _, pair_id = self.bootstrap_shielded_public_tokens()
+
+        added = self.dex.addLiquidity(
+            tokenA="con_private_a",
+            tokenB="con_private_b",
+            amountADesired=1000,
+            amountBDesired=1000,
+            amountAMin=1000,
+            amountBMin=1000,
+            to=self.lp,
+            deadline=self.deadline,
+            signer=self.lp,
+            environment={"now": self.now},
+        )
+        self.assertEqual(added[0], 1000)
+        self.assertEqual(added[1], 1000)
+
+        quoted = self.dex.getAmountsOut(
+            amountIn=101,
+            src="con_private_a",
+            path=[pair_id],
+            signer=self.trader,
+        )
+        self.assertEqual(len(quoted), 2)
+        self.assertEqual(int(quoted[-1]), quoted[-1])
+        self.assertGreater(quoted[-1], 0)
+
+        private_b_before = self.private_b.balance_of(
+            account=self.trader,
+            signer=self.operator,
+        )
+        output = self.dex.swapExactTokenForToken(
+            amountIn=101,
+            amountOutMin=1,
+            pair=pair_id,
+            src="con_private_a",
+            to=self.trader,
+            deadline=self.deadline,
+            signer=self.trader,
+            environment={"now": self.now},
+        )
+        self.assertEqual(int(output), output)
+        self.assertEqual(
+            self.private_b.balance_of(account=self.trader, signer=self.operator) - private_b_before,
+            output,
+        )
+
+        liquidity = added[2]
+        self.pairs.liqApprove(
+            pair=pair_id,
+            amount=liquidity,
+            to="con_dex",
+            signer=self.lp,
+        )
+        private_a_before = self.private_a.balance_of(
+            account=self.lp,
+            signer=self.operator,
+        )
+        private_b_before = self.private_b.balance_of(
+            account=self.lp,
+            signer=self.operator,
+        )
+        removed = self.dex.removeLiquidity(
+            tokenA="con_private_a",
+            tokenB="con_private_b",
+            liquidity=liquidity / 2,
+            amountAMin=1,
+            amountBMin=1,
+            to=self.lp,
+            deadline=self.deadline,
+            signer=self.lp,
+            environment={"now": self.now},
+        )
+
+        self.assertEqual(int(removed[0]), removed[0])
+        self.assertEqual(int(removed[1]), removed[1])
+        self.assertEqual(
+            self.private_a.balance_of(account=self.lp, signer=self.operator) - private_a_before,
+            removed[0],
+        )
+        self.assertEqual(
+            self.private_b.balance_of(account=self.lp, signer=self.operator) - private_b_before,
+            removed[1],
         )
 
 

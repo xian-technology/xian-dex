@@ -38,6 +38,9 @@ logic, and convenience helpers.
   pair swaps remain on the standard 30 bps fee path.
 - Plain swap routes reject flagged fee-on-transfer tokens and require the
   supporting-fee router path instead.
+- Tokens that expose `get_metadata().precision` now route through the DEX with
+  precision-aware amount normalization. That covers integer-precision public
+  balances such as `shielded-note-token`.
 - The helper contract now requires an explicit absolute `deadline`. The older
   relative `deadline_min` pattern was not a real pre-inclusion expiry guard,
   because it was computed from on-chain `now` at execution time.
