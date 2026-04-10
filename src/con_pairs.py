@@ -94,7 +94,7 @@ def token_precision(token: str):
 	metadata = importlib.import_module(token).get_metadata()
 	if metadata is None:
 		return None
-	precision = metadata["precision"]
+	precision = metadata["precision"] if "precision" in metadata else None
 	if isinstance(precision, int) and precision >= 0:
 		return precision
 	return None
