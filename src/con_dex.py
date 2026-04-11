@@ -8,8 +8,9 @@ owner = Variable()
 fee_on_transfer_tokens = Hash(default_value=False)
 zero_fee_signers = Hash(default_value=False)
 
-ZeroFeeTraderUpdated = LogEvent(event="ZeroFeeTraderUpdated",
-	params={
+ZeroFeeTraderUpdated = LogEvent(
+    "ZeroFeeTraderUpdated",
+    {
 	"account": {'type': str, 'idx': True},
 	"enabled": {'type': bool}
 	}

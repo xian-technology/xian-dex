@@ -920,7 +920,7 @@ class TestDexRouter(unittest.TestCase):
         self.assertGreater(quoted[-1], 0)
 
         private_b_before = self.private_b.balance_of(
-            account=self.trader,
+            address=self.trader,
             signer=self.operator,
         )
         output = self.dex.swapExactTokenForToken(
@@ -935,7 +935,7 @@ class TestDexRouter(unittest.TestCase):
         )
         self.assertEqual(int(output), output)
         self.assertEqual(
-            self.private_b.balance_of(account=self.trader, signer=self.operator) - private_b_before,
+            self.private_b.balance_of(address=self.trader, signer=self.operator) - private_b_before,
             output,
         )
 
@@ -947,11 +947,11 @@ class TestDexRouter(unittest.TestCase):
             signer=self.lp,
         )
         private_a_before = self.private_a.balance_of(
-            account=self.lp,
+            address=self.lp,
             signer=self.operator,
         )
         private_b_before = self.private_b.balance_of(
-            account=self.lp,
+            address=self.lp,
             signer=self.operator,
         )
         removed = self.dex.removeLiquidity(
@@ -969,11 +969,11 @@ class TestDexRouter(unittest.TestCase):
         self.assertEqual(int(removed[0]), removed[0])
         self.assertEqual(int(removed[1]), removed[1])
         self.assertEqual(
-            self.private_a.balance_of(account=self.lp, signer=self.operator) - private_a_before,
+            self.private_a.balance_of(address=self.lp, signer=self.operator) - private_a_before,
             removed[0],
         )
         self.assertEqual(
-            self.private_b.balance_of(account=self.lp, signer=self.operator) - private_b_before,
+            self.private_b.balance_of(address=self.lp, signer=self.operator) - private_b_before,
             removed[1],
         )
 

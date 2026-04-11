@@ -2,16 +2,18 @@ MINIMUM_LIQUIDITY = 0.00000001
 MAXIMUM_BALANCE = 1e14
 DEX_ROUTER = "con_dex"
 
-PairCreated = LogEvent(event="PairCreated",
-	params={
+PairCreated = LogEvent(
+    "PairCreated",
+    {
 	"token0": {'type':str, 'idx':True},
 	"token1": {'type':str, 'idx':True},
 	"pair":   {'type':int}
 	}
 )
 	
-Mint = LogEvent(event="Mint",
-	params={
+Mint = LogEvent(
+    "Mint",
+    {
 	"pair":    {'type':int, 'idx':True},
 	"amount0": {'type':(int,float,decimal)},
 	"amount1": {'type':(int,float,decimal)},
@@ -19,8 +21,9 @@ Mint = LogEvent(event="Mint",
 	}
 )
 	
-Burn = LogEvent(event="Burn",
-	params={
+Burn = LogEvent(
+    "Burn",
+    {
 	"pair":    {'type':int, 'idx':True},
 	"amount0": {'type':(int,float,decimal)},
 	"amount1": {'type':(int,float,decimal)},
@@ -28,8 +31,9 @@ Burn = LogEvent(event="Burn",
 	}
 )
 
-Swap = LogEvent(event="Swap",
-	params={
+Swap = LogEvent(
+    "Swap",
+    {
 	"pair":       {'type':int, 'idx':True},
 	"amount0In":  {'type':(int,float,decimal)},
 	"amount1In":  {'type':(int,float,decimal)},
@@ -39,16 +43,18 @@ Swap = LogEvent(event="Swap",
 	}
 )
 
-Sync = LogEvent(event="Sync",
-	params={
+Sync = LogEvent(
+    "Sync",
+    {
 	"pair":      {'type':int, 'idx':True},
 	"reserve0":  {'type':(int,float,decimal)},
 	"reserve1":  {'type':(int,float,decimal)},
 	}
 )
 
-TransferLiq = LogEvent(event="TransferLiq",
-	params={
+TransferLiq = LogEvent(
+    "TransferLiq",
+    {
 	"pair": {'type':int, 'idx':True},
 	"from": {'type':str, 'idx':True},
 	"to":   {'type':str, 'idx':True},
@@ -56,8 +62,9 @@ TransferLiq = LogEvent(event="TransferLiq",
 	}
 )
 
-ApproveLiq = LogEvent(event="ApproveLiq",
-	params={
+ApproveLiq = LogEvent(
+    "ApproveLiq",
+    {
 	"pair": {'type':int, 'idx':True},
 	"from": {'type':str, 'idx':True},
 	"to":   {'type':str, 'idx':True},
