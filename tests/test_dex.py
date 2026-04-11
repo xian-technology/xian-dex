@@ -10,7 +10,10 @@ CONTRACTS_ROOT = ROOT.parent
 DEX_PAIRS_PATH = ROOT / "src" / "con_pairs.py"
 DEX_ROUTER_PATH = ROOT / "src" / "con_dex.py"
 SHIELDED_NOTE_TOKEN_PATH = (
-    CONTRACTS_ROOT / "shielded-note-token" / "src" / "con_shielded_note_token.py"
+    CONTRACTS_ROOT
+    / "shielded-note-token"
+    / "src"
+    / "con_shielded_note_token.py"
 )
 
 PLAIN_TOKEN = """
@@ -123,9 +126,15 @@ class TestDexRouter(unittest.TestCase):
         self.deadline = Datetime(2026, 1, 2)
 
         for account in (self.lp, self.trader, self.market_maker):
-            self.currency.transfer(amount=5000, to=account, signer=self.operator)
-            self.plain_mid.transfer(amount=5000, to=account, signer=self.operator)
-            self.plain_out.transfer(amount=5000, to=account, signer=self.operator)
+            self.currency.transfer(
+                amount=5000, to=account, signer=self.operator
+            )
+            self.plain_mid.transfer(
+                amount=5000, to=account, signer=self.operator
+            )
+            self.plain_out.transfer(
+                amount=5000, to=account, signer=self.operator
+            )
             self.tax.transfer(amount=5000, to=account, signer=self.operator)
             self.currency.approve(amount=5000, to="con_dex", signer=account)
             self.plain_mid.approve(amount=5000, to="con_dex", signer=account)
@@ -186,8 +195,12 @@ class TestDexRouter(unittest.TestCase):
         self.private_b = self.client.get_contract("con_private_b")
 
         for account in (self.lp, self.trader, self.market_maker):
-            self.private_a.mint_public(amount=5000, to=account, signer=self.operator)
-            self.private_b.mint_public(amount=5000, to=account, signer=self.operator)
+            self.private_a.mint_public(
+                amount=5000, to=account, signer=self.operator
+            )
+            self.private_b.mint_public(
+                amount=5000, to=account, signer=self.operator
+            )
             self.private_a.approve(amount=5000, to="con_dex", signer=account)
             self.private_b.approve(amount=5000, to="con_dex", signer=account)
 
@@ -282,7 +295,9 @@ class TestDexRouter(unittest.TestCase):
             signer=self.lp,
         )
 
-        currency_before = self.currency.balance_of(address=self.lp, signer=self.operator)
+        currency_before = self.currency.balance_of(
+            address=self.lp, signer=self.operator
+        )
         tax_before = self.tax.balance_of(address=self.lp, signer=self.operator)
         removed = self.dex.removeLiquidity(
             tokenA="currency",
@@ -296,8 +311,14 @@ class TestDexRouter(unittest.TestCase):
             environment={"now": self.now},
         )
 
-        currency_delta = self.currency.balance_of(address=self.lp, signer=self.operator) - currency_before
-        tax_delta = self.tax.balance_of(address=self.lp, signer=self.operator) - tax_before
+        currency_delta = (
+            self.currency.balance_of(address=self.lp, signer=self.operator)
+            - currency_before
+        )
+        tax_delta = (
+            self.tax.balance_of(address=self.lp, signer=self.operator)
+            - tax_before
+        )
         self.assertAmountEqual(removed[0], currency_delta)
         self.assertAmountEqual(removed[1], tax_delta)
         self.assertGreater(removed[0], ContractingDecimal("0"))
@@ -318,7 +339,9 @@ class TestDexRouter(unittest.TestCase):
             environment={"now": self.now},
         )
 
-        tax_before = self.tax.balance_of(address=self.trader, signer=self.operator)
+        tax_before = self.tax.balance_of(
+            address=self.trader, signer=self.operator
+        )
         output = self.dex.swapExactTokensForTokensSupportingFeeOnTransferTokens(
             amountIn=100,
             amountOutMin=1,
@@ -333,7 +356,8 @@ class TestDexRouter(unittest.TestCase):
         self.assertIsNotNone(output)
         self.assertGreater(output, ContractingDecimal("0"))
         self.assertAmountEqual(
-            self.tax.balance_of(address=self.trader, signer=self.operator) - tax_before,
+            self.tax.balance_of(address=self.trader, signer=self.operator)
+            - tax_before,
             output,
         )
 
@@ -363,7 +387,9 @@ class TestDexRouter(unittest.TestCase):
     def test_sync2_is_router_only(self):
         _, pair_id = self.bootstrap_pair()
         with self.assertRaises(AssertionError):
-            self.pairs.sync2(pair=pair_id, amount0=1, amount1=0, signer=self.operator)
+            self.pairs.sync2(
+                pair=pair_id, amount0=1, amount1=0, signer=self.operator
+            )
 
     def test_multi_hop_path_validation_and_execution(self):
         pair_ab = self.pairs.createPair(
@@ -416,7 +442,9 @@ class TestDexRouter(unittest.TestCase):
         self.assertEqual(len(quoted), 3)
         self.assertGreater(quoted[-1], ContractingDecimal("0"))
 
-        out_before = self.plain_out.balance_of(address=self.trader, signer=self.operator)
+        out_before = self.plain_out.balance_of(
+            address=self.trader, signer=self.operator
+        )
         output = self.dex.swapExactTokensForTokens(
             amountIn=100,
             amountOutMin=1,
@@ -428,7 +456,8 @@ class TestDexRouter(unittest.TestCase):
             environment={"now": self.now},
         )
         self.assertAmountEqual(
-            self.plain_out.balance_of(address=self.trader, signer=self.operator) - out_before,
+            self.plain_out.balance_of(address=self.trader, signer=self.operator)
+            - out_before,
             output,
         )
 
@@ -456,8 +485,12 @@ class TestDexRouter(unittest.TestCase):
         )
         liquidity = added[2]
 
-        self.pairs.liqApprove(pair=pair_id, amount=liquidity, to="con_dex", signer=self.lp)
-        self.pairs.liqApprove(pair=pair_id, amount=0, to="con_dex", signer=self.lp)
+        self.pairs.liqApprove(
+            pair=pair_id, amount=liquidity, to="con_dex", signer=self.lp
+        )
+        self.pairs.liqApprove(
+            pair=pair_id, amount=0, to="con_dex", signer=self.lp
+        )
 
         with self.assertRaises(AssertionError):
             self.dex.removeLiquidity(
@@ -489,8 +522,18 @@ class TestDexRouter(unittest.TestCase):
         liquidity = added[2]
         moved = liquidity / 2
 
-        lp_before = self.client.get_var("con_pairs", "pairs", [pair_id, "balances", self.lp]) or 0
-        trader_before = self.client.get_var("con_pairs", "pairs", [pair_id, "balances", self.trader]) or 0
+        lp_before = (
+            self.client.get_var(
+                "con_pairs", "pairs", [pair_id, "balances", self.lp]
+            )
+            or 0
+        )
+        trader_before = (
+            self.client.get_var(
+                "con_pairs", "pairs", [pair_id, "balances", self.trader]
+            )
+            or 0
+        )
 
         self.pairs.liqTransfer(
             pair=pair_id,
@@ -499,8 +542,18 @@ class TestDexRouter(unittest.TestCase):
             signer=self.lp,
         )
 
-        lp_after = self.client.get_var("con_pairs", "pairs", [pair_id, "balances", self.lp]) or 0
-        trader_after = self.client.get_var("con_pairs", "pairs", [pair_id, "balances", self.trader]) or 0
+        lp_after = (
+            self.client.get_var(
+                "con_pairs", "pairs", [pair_id, "balances", self.lp]
+            )
+            or 0
+        )
+        trader_after = (
+            self.client.get_var(
+                "con_pairs", "pairs", [pair_id, "balances", self.trader]
+            )
+            or 0
+        )
         self.assertAmountEqual(lp_before - lp_after, moved)
         self.assertAmountEqual(trader_after - trader_before, moved)
 
@@ -536,10 +589,20 @@ class TestDexRouter(unittest.TestCase):
             signer=self.trader,
         )
 
-        remaining_allowance = self.client.get_var(
-            "con_pairs", "pairs", [pair_id, "balances", self.lp, self.trader]
-        ) or 0
-        trader_balance = self.client.get_var("con_pairs", "pairs", [pair_id, "balances", self.trader]) or 0
+        remaining_allowance = (
+            self.client.get_var(
+                "con_pairs",
+                "pairs",
+                [pair_id, "balances", self.lp, self.trader],
+            )
+            or 0
+        )
+        trader_balance = (
+            self.client.get_var(
+                "con_pairs", "pairs", [pair_id, "balances", self.trader]
+            )
+            or 0
+        )
         self.assertAmountEqual(remaining_allowance, 0)
         self.assertAmountEqual(trader_balance, approved)
 
@@ -571,7 +634,10 @@ class TestDexRouter(unittest.TestCase):
             environment={"now": self.now},
         )
 
-        owner_lp_before = self.client.get_var("con_pairs", "pairs", [pair, "balances", "sys"]) or 0
+        owner_lp_before = (
+            self.client.get_var("con_pairs", "pairs", [pair, "balances", "sys"])
+            or 0
+        )
 
         self.dex.swapExactTokenForToken(
             amountIn=100,
@@ -597,10 +663,15 @@ class TestDexRouter(unittest.TestCase):
             environment={"now": self.now},
         )
 
-        owner_lp_after = self.client.get_var("con_pairs", "pairs", [pair, "balances", "sys"]) or 0
+        owner_lp_after = (
+            self.client.get_var("con_pairs", "pairs", [pair, "balances", "sys"])
+            or 0
+        )
         self.assertGreater(owner_lp_after, owner_lp_before)
 
-    def test_supporting_fee_multi_hop_rejects_fee_on_transfer_bridge_token(self):
+    def test_supporting_fee_multi_hop_rejects_fee_on_transfer_bridge_token(
+        self,
+    ):
         pair_ab = self.pairs.createPair(
             tokenA="con_tax_token",
             tokenB="currency",
@@ -731,7 +802,9 @@ class TestDexRouter(unittest.TestCase):
             signer=self.operator,
         )
 
-        tax_before = self.tax.balance_of(address=self.trader, signer=self.operator)
+        tax_before = self.tax.balance_of(
+            address=self.trader, signer=self.operator
+        )
         output = self.dex.swapExactTokensForTokensSupportingFeeOnTransferTokens(
             amountIn=100,
             amountOutMin=1,
@@ -745,7 +818,8 @@ class TestDexRouter(unittest.TestCase):
 
         self.assertGreater(output, ContractingDecimal("0"))
         self.assertAmountEqual(
-            self.tax.balance_of(address=self.trader, signer=self.operator) - tax_before,
+            self.tax.balance_of(address=self.trader, signer=self.operator)
+            - tax_before,
             output,
         )
 
@@ -763,7 +837,9 @@ class TestDexRouter(unittest.TestCase):
             signer=self.operator,
         )
         self.assertTrue(
-            self.client.get_var("con_dex", "fee_on_transfer_tokens", ["con_tax_token"])
+            self.client.get_var(
+                "con_dex", "fee_on_transfer_tokens", ["con_tax_token"]
+            )
         )
 
         self.dex.set_fee_on_transfer_token(
@@ -772,11 +848,18 @@ class TestDexRouter(unittest.TestCase):
             signer=self.operator,
         )
         self.assertFalse(
-            self.client.get_var("con_dex", "fee_on_transfer_tokens", ["con_tax_token"])
+            self.client.get_var(
+                "con_dex", "fee_on_transfer_tokens", ["con_tax_token"]
+            )
         )
 
     def test_set_zero_fee_trader_is_owner_only_and_toggleable(self):
-        self.assertEqual(self.dex.getTradeFeeBps(account=self.market_maker, signer=self.operator), 30)
+        self.assertEqual(
+            self.dex.getTradeFeeBps(
+                account=self.market_maker, signer=self.operator
+            ),
+            30,
+        )
 
         with self.assertRaises(AssertionError):
             self.dex.set_zero_fee_trader(
@@ -790,7 +873,12 @@ class TestDexRouter(unittest.TestCase):
             enabled=True,
             signer=self.operator,
         )
-        self.assertEqual(self.dex.getTradeFeeBps(account=self.market_maker, signer=self.operator), 0)
+        self.assertEqual(
+            self.dex.getTradeFeeBps(
+                account=self.market_maker, signer=self.operator
+            ),
+            0,
+        )
         self.assertEqual(self.dex.getTradeFeeBps(signer=self.market_maker), 0)
 
         self.dex.set_zero_fee_trader(
@@ -798,7 +886,12 @@ class TestDexRouter(unittest.TestCase):
             enabled=False,
             signer=self.operator,
         )
-        self.assertEqual(self.dex.getTradeFeeBps(account=self.market_maker, signer=self.operator), 30)
+        self.assertEqual(
+            self.dex.getTradeFeeBps(
+                account=self.market_maker, signer=self.operator
+            ),
+            30,
+        )
 
     def test_zero_fee_trader_gets_better_quote_and_execution(self):
         standard_pair = self.pairs.createPair(
@@ -857,8 +950,12 @@ class TestDexRouter(unittest.TestCase):
         )[-1]
         self.assertGreater(zero_fee_quote, standard_quote)
 
-        standard_before = self.plain_mid.balance_of(address=self.trader, signer=self.operator)
-        zero_fee_before = self.plain_out.balance_of(address=self.market_maker, signer=self.operator)
+        standard_before = self.plain_mid.balance_of(
+            address=self.trader, signer=self.operator
+        )
+        zero_fee_before = self.plain_out.balance_of(
+            address=self.market_maker, signer=self.operator
+        )
 
         standard_output = self.dex.swapExactTokenForToken(
             amountIn=100,
@@ -883,15 +980,21 @@ class TestDexRouter(unittest.TestCase):
 
         self.assertGreater(zero_fee_output, standard_output)
         self.assertAmountEqual(
-            self.plain_mid.balance_of(address=self.trader, signer=self.operator) - standard_before,
+            self.plain_mid.balance_of(address=self.trader, signer=self.operator)
+            - standard_before,
             standard_output,
         )
         self.assertAmountEqual(
-            self.plain_out.balance_of(address=self.market_maker, signer=self.operator) - zero_fee_before,
+            self.plain_out.balance_of(
+                address=self.market_maker, signer=self.operator
+            )
+            - zero_fee_before,
             zero_fee_output,
         )
 
-    def test_shielded_public_token_pair_supports_liquidity_swap_and_remove(self):
+    def test_shielded_public_token_pair_supports_liquidity_swap_and_remove(
+        self,
+    ):
         _, pair_id = self.bootstrap_shielded_public_tokens()
 
         added = self.dex.addLiquidity(
@@ -935,7 +1038,8 @@ class TestDexRouter(unittest.TestCase):
         )
         self.assertEqual(int(output), output)
         self.assertEqual(
-            self.private_b.balance_of(address=self.trader, signer=self.operator) - private_b_before,
+            self.private_b.balance_of(address=self.trader, signer=self.operator)
+            - private_b_before,
             output,
         )
 
@@ -969,11 +1073,13 @@ class TestDexRouter(unittest.TestCase):
         self.assertEqual(int(removed[0]), removed[0])
         self.assertEqual(int(removed[1]), removed[1])
         self.assertEqual(
-            self.private_a.balance_of(address=self.lp, signer=self.operator) - private_a_before,
+            self.private_a.balance_of(address=self.lp, signer=self.operator)
+            - private_a_before,
             removed[0],
         )
         self.assertEqual(
-            self.private_b.balance_of(address=self.lp, signer=self.operator) - private_b_before,
+            self.private_b.balance_of(address=self.lp, signer=self.operator)
+            - private_b_before,
             removed[1],
         )
 

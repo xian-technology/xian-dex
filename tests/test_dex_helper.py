@@ -77,13 +77,17 @@ class TestDexHelper(unittest.TestCase):
         self.expired_deadline = Datetime(2026, 1, 1, 11, 59, 0)
 
         for account in (self.lp, self.trader, self.market_maker):
-            self.currency.transfer(amount=5000, to=account, signer=self.operator)
+            self.currency.transfer(
+                amount=5000, to=account, signer=self.operator
+            )
             self.out.transfer(amount=5000, to=account, signer=self.operator)
             self.alt.transfer(amount=5000, to=account, signer=self.operator)
             self.currency.approve(amount=5000, to="con_dex", signer=account)
             self.out.approve(amount=5000, to="con_dex", signer=account)
             self.alt.approve(amount=5000, to="con_dex", signer=account)
-            self.currency.approve(amount=5000, to="con_dex_helper", signer=account)
+            self.currency.approve(
+                amount=5000, to="con_dex_helper", signer=account
+            )
             self.out.approve(amount=5000, to="con_dex_helper", signer=account)
             self.alt.approve(amount=5000, to="con_dex_helper", signer=account)
 
