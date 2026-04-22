@@ -51,7 +51,7 @@ def token_precision(token: str):
 def token_scale(precision: int):
 	scale = 1
 	for step in range(0, precision):
-		scale *= 10
+		scale = scale * 10
 	return scale
 
 
@@ -64,7 +64,7 @@ def normalize_token_amount(token: str, amount: float, round_up: bool = False):
 	scaled = amount * scale
 	normalized = int(scaled)
 	if round_up and normalized < scaled:
-		normalized += 1
+		normalized = normalized + 1
 	if precision == 0:
 		return normalized
 	return normalized / scale

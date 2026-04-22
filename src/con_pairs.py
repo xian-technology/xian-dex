@@ -110,7 +110,7 @@ def token_precision(token: str):
 def token_scale(precision: int):
 	scale = 1
 	for step in range(0, precision):
-		scale *= 10
+		scale = scale * 10
 	return scale
 
 
@@ -123,7 +123,7 @@ def normalize_token_amount(token: str, amount: float, round_up: bool = False):
 	scaled = amount * scale
 	normalized = int(scaled)
 	if round_up and normalized < scaled:
-		normalized += 1
+		normalized = normalized + 1
 	if precision == 0:
 		return normalized
 	return normalized / scale
@@ -190,8 +190,8 @@ def liqTransfer(pair: int, amount: float, to: str):
 	assert amount > 0, 'Cannot send negative balances!'
 	assert pairs[pair, "balances", ctx.caller] >= amount, 'Not enough coins to send!'
 	
-	pairs[pair, "balances", ctx.caller] -= amount
-	pairs[pair, "balances", to] += amount
+	pairs[pair, "balances", ctx.caller] = pairs[pair, "balances", ctx.caller] - amount
+	pairs[pair, "balances", to] = pairs[pair, "balances", to] + amount
 	
 	TransferLiq({"pair": pair, "from": ctx.caller, "to": to, "amount": amount})
     
@@ -209,9 +209,9 @@ def liqTransfer_from(pair: int, amount: float, to: str, main_account: str):
 		'Not enough coins approved to send! You have {} and are trying to spend {}'.format(pairs[pair, "balances", main_account, ctx.caller], amount)
 	assert pairs[pair, "balances", main_account] >= amount, 'Not enough coins to send!'
 	
-	pairs[pair, "balances", main_account, ctx.caller] -= amount
-	pairs[pair, "balances", main_account] -= amount
-	pairs[pair, "balances", to] += amount
+	pairs[pair, "balances", main_account, ctx.caller] = pairs[pair, "balances", main_account, ctx.caller] - amount
+	pairs[pair, "balances", main_account] = pairs[pair, "balances", main_account] - amount
+	pairs[pair, "balances", to] = pairs[pair, "balances", to] + amount
 	
 	TransferLiq({"pair": pair, "from": main_account, "to": to, "amount": amount})
 
@@ -233,7 +233,7 @@ def safeTransferFromPair(pair: int, token: str, to: str, value: float):
 		#new_balance = tok_balances[ctx.this]
 		new_balance = t.balance_of(ctx.this)
 		assert new_balance >= 0, "p2a Negative balance!"
-		pairs[pair, "balance0"] += new_balance - prev_balance
+		pairs[pair, "balance0"] = pairs[pair, "balance0"] + new_balance - prev_balance
 		assert pairs[pair, "balance0"] >= 0, "p2a Negative pair balance0!"
 		return True
 		
@@ -244,7 +244,7 @@ def safeTransferFromPair(pair: int, token: str, to: str, value: float):
 		#new_balance = tok_balances[ctx.this]
 		new_balance = t.balance_of(ctx.this)
 		assert new_balance >= 0, "p2a Negative balance!"
-		pairs[pair, "balance1"] += new_balance - prev_balance
+		pairs[pair, "balance1"] = pairs[pair, "balance1"] + new_balance - prev_balance
 		assert pairs[pair, "balance1"] >= 0, "p2a Negative pair balance1!"
 		return True
 		
@@ -262,12 +262,12 @@ def safeTransferFromPairToPair(pair: int, token: str, to: int, value: float):
 		
 		#prev_balance = pairs[pair, "balance0"]
 		
-		pairs[pair, "balance0"] -= value
+		pairs[pair, "balance0"] = pairs[pair, "balance0"] - value
 		
 		if(pairs[to, "token0"] == token):
-			pairs[to, "balance0"] += value
+			pairs[to, "balance0"] = pairs[to, "balance0"] + value
 		elif(pairs[to, "token1"] == token):
-			pairs[to, "balance1"] += value
+			pairs[to, "balance1"] = pairs[to, "balance1"] + value
 		else:
 			assert False, "p2p No token in TO"
 		
@@ -281,12 +281,12 @@ def safeTransferFromPairToPair(pair: int, token: str, to: int, value: float):
 		
 		#prev_balance = pairs[pair, "balance1"]
 		
-		pairs[pair, "balance1"] -= value
+		pairs[pair, "balance1"] = pairs[pair, "balance1"] - value
 		
 		if(pairs[to, "token0"] == token):
-			pairs[to, "balance0"] += value
+			pairs[to, "balance0"] = pairs[to, "balance0"] + value
 		elif(pairs[to, "token1"] == token):
-			pairs[to, "balance1"] += value
+			pairs[to, "balance1"] = pairs[to, "balance1"] + value
 		else:
 			assert False, "p2p No token in TO"
 		
@@ -353,14 +353,14 @@ def sync2(pair: int, amount0: float = 0.0, amount1: float = 0.0):
 	assert balA >= balances[tokenA] + amount0, "SNAKX: token0_missing"
 	assert balB >= balances[tokenB] + amount1, "SNAKX: token1_missing"
 
-	pairs[pair, "balance0"] += amount0
-	pairs[pair, "balance1"] += amount1
+	pairs[pair, "balance0"] = pairs[pair, "balance0"] + amount0
+	pairs[pair, "balance1"] = pairs[pair, "balance1"] + amount1
 	
 	assert pairs[pair, "balance0"] <= MAXIMUM_BALANCE, "SNAKX: TokenA OVERFLOW"
 	assert pairs[pair, "balance1"] <= MAXIMUM_BALANCE, "SNAKX: TokenB OVERFLOW"
 	
-	balances[tokenA] += amount0
-	balances[tokenB] += amount1
+	balances[tokenA] = balances[tokenA] + amount0
+	balances[tokenB] = balances[tokenB] + amount1
 	
 	LOCK.set(False)
 
@@ -400,9 +400,9 @@ def internal_mintFee(pair: int, reserve0: float, reserve1: float):
 	return feeOn
 
 def internal_burn(pair: int, src: str, value: float):
-	pairs[pair, "totalSupply"] -= value
+	pairs[pair, "totalSupply"] = pairs[pair, "totalSupply"] - value
 	assert pairs[pair, "totalSupply"] >= 0, "Negative supply!"
-	pairs[pair, "balances", src] -= value
+	pairs[pair, "balances", src] = pairs[pair, "balances", src] - value
 	assert pairs[pair, "balances", src] >= 0, "Negative balance!"
 
 
@@ -499,8 +499,8 @@ def burn(pair: int, to: str):
 
 
 def internal_mint(pair: int, to: str, value: float):
-	pairs[pair, "totalSupply"] += value
-	pairs[pair, "balances", to] += value
+	pairs[pair, "totalSupply"] = pairs[pair, "totalSupply"] + value
+	pairs[pair, "balances", to] = pairs[pair, "balances", to] + value
 
 #noreentry
 @export
