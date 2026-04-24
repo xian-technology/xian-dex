@@ -13,6 +13,8 @@ logic, and convenience helpers.
 - `src/con_dex.py`: router-style liquidity and swap entrypoints
 - `src/con_dex_helper.py`: convenience helper around the router for single-pair
   buy/sell flows
+- `src/con_lp_token.py`: XSC001-compatible LP token template for pairs that
+  should mint transferable LP tokens
 
 ## Notes
 
@@ -26,7 +28,12 @@ logic, and convenience helpers.
 - Pair balance crediting is router-driven; unsolicited token transfers into
   `con_pairs` are not automatically attributed to any pair.
 - Package-local tests now cover protocol-fee minting, multi-hop routing, and
-  router-mediated LP allowance flows.
+  standard LP token allowance flows.
+- Every pair has a bound XSC001 LP token contract. Create pairs with
+  `createPair(tokenA, tokenB, lpToken=...)`, or pass `lpToken=...` to
+  `addLiquidity` when the router needs to auto-create the pair. The pair
+  contract mints/burns that LP token directly; users transfer it with
+  `transfer` and approve removals with `approve(amount, to="con_dex")`.
 - Multi-hop fee-on-transfer support is intentionally limited: the router can
   handle fee-on-transfer ingress and final output, but known fee-on-transfer
   bridge tokens must be flagged with `set_fee_on_transfer_token(...)` and are

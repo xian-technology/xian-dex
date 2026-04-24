@@ -100,6 +100,12 @@ def transfer_into_pairs(token: str, src: str, amount: float):
 	return actual_balance(token, DEX_PAIRS) - balance_before
 
 
+def transfer_lp_into_pairs(pair: int, src: str, amount: float):
+	pairs = PAIRS()
+	lp_token = pairs.lpTokenFor(pair)
+	importlib.import_module(lp_token).transfer_from(amount, DEX_PAIRS, src)
+
+
 def validate_path(src: str, path: list):
 	current = src
 	for pair in path:
@@ -170,12 +176,16 @@ tokenB: str,
 amountADesired: float,
 amountBDesired: float,
 amountAMin: float,
-amountBMin: float):
+amountBMin: float,
+lpToken: str = None):
 	pairs = PAIRS()
 	
 	desired_pair = toks_to_pair[tokenA, tokenB]
 	if (desired_pair == None):
-		desired_pair = pairs.createPair(tokenA, tokenB)
+		assert lpToken is not None, "SNAKX: LP_TOKEN_REQUIRED"
+		desired_pair = pairs.createPair(tokenA, tokenB, lpToken)
+	elif lpToken is not None:
+		assert pairs.lpTokenFor(desired_pair) == lpToken, "SNAKX: LP_TOKEN_MISMATCH"
 	reserveA, reserveB, ignore = pairs.getReserves(desired_pair)
 
 	if (reserveA == 0 and reserveB == 0):
@@ -202,7 +212,8 @@ def addLiquidity(
 	amountAMin: float,
 	amountBMin: float,
 	to: str,
-	deadline: datetime.datetime
+	deadline: datetime.datetime,
+	lpToken: str = None
 	):
 	assert now < deadline, 'SNAKX: EXPIRED'
 	pairs = PAIRS()
@@ -216,7 +227,7 @@ def addLiquidity(
 	amountAMin = normalize_token_amount(tokenA, amountAMin)
 	amountBMin = normalize_token_amount(tokenB, amountBMin)
 	assert amountADesired > 0 and amountBDesired > 0, 'SNAKX: INSUFFICIENT_AMOUNT'
-	amountA, amountB = internal_addLiquidity(tokenA, tokenB, amountADesired, amountBDesired, amountAMin, amountBMin)
+	amountA, amountB = internal_addLiquidity(tokenA, tokenB, amountADesired, amountBDesired, amountAMin, amountBMin, lpToken)
 
 	pair = toks_to_pair[tokenA, tokenB]
 	
@@ -256,8 +267,7 @@ def removeLiquidity(
 
 	balanceA_before = actual_balance(tokenA, to)
 	balanceB_before = actual_balance(tokenB, to)
-	#liqTransfer_from(desired_pair, liquidity, ctx.this, ctx.caller)
-	pairs.liqTransfer_from(desired_pair, liquidity, DEX_PAIRS, ctx.caller)
+	transfer_lp_into_pairs(desired_pair, ctx.caller, liquidity)
 	pairs.burn(desired_pair, to)
 
 	actual_amountA = actual_balance(tokenA, to) - balanceA_before

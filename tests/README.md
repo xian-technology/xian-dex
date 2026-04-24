@@ -13,8 +13,7 @@ Current coverage:
 - unsolicited token transfers not being credited to a pair
 - router-only pair crediting
 - multi-hop routing and invalid-path rejection
-- LP allowance clearing
-- direct LP transfer and allowance-based LP transfer
+- XSC001-compatible LP token minting, transfer, approval, and removal
 - protocol fee (`feeTo`) minting on growth
 - guarded multi-hop fee-on-transfer routing
 - fee-on-transfer token flag permissions and toggling

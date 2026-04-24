@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DEX_PAIRS_PATH = ROOT / "src" / "con_pairs.py"
 DEX_ROUTER_PATH = ROOT / "src" / "con_dex.py"
 DEX_HELPER_PATH = ROOT / "src" / "con_dex_helper.py"
+LP_TOKEN_PATH = ROOT / "src" / "con_lp_token.py"
 
 PLAIN_TOKEN = """
 balances = Hash(default_value=0)
@@ -91,9 +92,11 @@ class TestDexHelper(unittest.TestCase):
             self.out.approve(amount=5000, to="con_dex_helper", signer=account)
             self.alt.approve(amount=5000, to="con_dex_helper", signer=account)
 
+        self.submit_lp_token("con_lp_helper_out")
         self.pair_id = self.pairs.createPair(
             tokenA="con_plain_out",
             tokenB="currency",
+            lpToken="con_lp_helper_out",
             signer=self.operator,
         )
         self.dex.addLiquidity(
@@ -109,9 +112,11 @@ class TestDexHelper(unittest.TestCase):
             environment={"now": self.now},
         )
 
+        self.submit_lp_token("con_lp_helper_alt")
         self.alt_pair_id = self.pairs.createPair(
             tokenA="con_plain_alt",
             tokenB="currency",
+            lpToken="con_lp_helper_alt",
             signer=self.operator,
         )
         self.dex.addLiquidity(
@@ -129,6 +134,20 @@ class TestDexHelper(unittest.TestCase):
 
     def tearDown(self):
         self.client.flush()
+
+    def submit_lp_token(self, name):
+        with LP_TOKEN_PATH.open() as f:
+            self.client.submit(
+                f.read(),
+                name=name,
+                constructor_args={
+                    "token_name": name,
+                    "token_symbol": name.upper(),
+                    "operator_address": self.operator,
+                    "minter_address": "con_pairs",
+                },
+                signer=self.operator,
+            )
 
     def assertAmountEqual(self, actual, expected):
         actual_value = ContractingDecimal(str(actual))

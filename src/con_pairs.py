@@ -52,26 +52,6 @@ Sync = LogEvent(
 	}
 )
 
-TransferLiq = LogEvent(
-    "TransferLiq",
-    {
-	"pair": {'type':int, 'idx':True},
-	"from": {'type':str, 'idx':True},
-	"to":   {'type':str, 'idx':True},
-	"amount":  {'type':(int,float,decimal)},
-	}
-)
-
-ApproveLiq = LogEvent(
-    "ApproveLiq",
-    {
-	"pair": {'type':int, 'idx':True},
-	"from": {'type':str, 'idx':True},
-	"to":   {'type':str, 'idx':True},
-	"amount":  {'type':(int,float,decimal)},
-	}
-)
-    
 toks_to_pair = Hash(default_value=None)
 pairs = Hash(default_value=0)
 pairs_num = Variable()
@@ -83,6 +63,17 @@ LOCK = Variable()
 
 
 REQUIRED_TOKEN_EXPORTS = ("transfer_from", "transfer", "balance_of")
+REQUIRED_LP_TOKEN_EXPORTS = ("mint", "burn", "get_metadata")
+LP_TOKEN_INTERFACE = [
+	importlib.Var("balances", Hash),
+	importlib.Var("approvals", Hash),
+	importlib.Var("metadata", Hash),
+	importlib.Func("change_metadata", args=("key", "value")),
+	importlib.Func("transfer", args=("amount", "to")),
+	importlib.Func("approve", args=("amount", "to")),
+	importlib.Func("transfer_from", args=("amount", "to", "main_account")),
+	importlib.Func("balance_of", args=("address",)),
+]
 
 
 def assert_token_contract(token: str):
@@ -90,9 +81,35 @@ def assert_token_contract(token: str):
 		assert importlib.has_export(token, export_name), "SNAKX: INVALID_TOKEN"
 
 
+def assert_lp_token_contract(token: str):
+	lp_token = importlib.import_module(token)
+	assert importlib.enforce_interface(lp_token, LP_TOKEN_INTERFACE), (
+		"SNAKX: INVALID_LP_TOKEN"
+	)
+	for export_name in REQUIRED_LP_TOKEN_EXPORTS:
+		assert importlib.has_export(token, export_name), "SNAKX: INVALID_LP_TOKEN"
+
+
 def load_token(token: str):
 	assert_token_contract(token)
 	return importlib.import_module(token)
+
+
+def load_lp_token_for(pair: int):
+	lp_token = pairs[pair, "lpToken"]
+	assert lp_token is not None and lp_token != 0, "SNAKX: NO_LP_TOKEN"
+	assert_lp_token_contract(lp_token)
+	return importlib.import_module(lp_token)
+
+
+def pair_exists(pair: int):
+	token0 = pairs[pair, "token0"]
+	return token0 is not None and token0 != 0
+
+
+def lp_balance_of(pair: int, address: str):
+	balance = load_lp_token_for(pair).balance_of(address)
+	return 0 if balance is None else balance
 
 
 def token_precision(token: str):
@@ -145,7 +162,7 @@ def enableFee(en: bool):
 	
 #factory
 @export
-def createPair(tokenA: str, tokenB: str):
+def createPair(tokenA: str, tokenB: str, lpToken: str):
 	assert tokenA != tokenB, 'SNAKX: IDENTICAL_ADDRESSES'
 	assert tokenA < tokenB, 'SNAKX: BAD_ORDER'
 	assert toks_to_pair[tokenA,tokenB] == None, 'SNAKX: PAIR_EXISTS'
@@ -155,6 +172,9 @@ def createPair(tokenA: str, tokenB: str):
 	assert_token_contract(tokenA)
 	
 	assert_token_contract(tokenB)
+
+	assert lpToken != tokenA and lpToken != tokenB, "SNAKX: INVALID_LP_TOKEN"
+	assert_lp_token_contract(lpToken)
 	
 	
 	p_num = pairs_num.get() + 1
@@ -171,6 +191,7 @@ def createPair(tokenA: str, tokenB: str):
 	pairs[p_num, "blockTimestampLast"] = now
 	
 	pairs[p_num, "totalSupply"] = 0.0
+	pairs[p_num, "lpToken"] = lpToken
 	pairs[p_num, "kLast"] = 0.0
 	pairs[p_num, "creationTime"] = now
 	
@@ -186,34 +207,11 @@ def pairFor(tokenA: str, tokenB: str):
 	return toks_to_pair[tokenA, tokenB]
 
 @export
-def liqTransfer(pair: int, amount: float, to: str):
-	assert amount > 0, 'Cannot send negative balances!'
-	assert pairs[pair, "balances", ctx.caller] >= amount, 'Not enough coins to send!'
-	
-	pairs[pair, "balances", ctx.caller] = pairs[pair, "balances", ctx.caller] - amount
-	pairs[pair, "balances", to] = pairs[pair, "balances", to] + amount
-	
-	TransferLiq({"pair": pair, "from": ctx.caller, "to": to, "amount": amount})
-    
-@export
-def liqApprove(pair: int, amount: float, to: str):
-	assert amount >= 0, 'Cannot send negative balances!'
-	pairs[pair, "balances", ctx.caller, to] = amount
-	
-	ApproveLiq({"pair": pair, "from": ctx.caller, "to": to, "amount": amount})
-	
-@export
-def liqTransfer_from(pair: int, amount: float, to: str, main_account: str):
-	assert amount > 0, 'Cannot send negative balances!'
-	assert pairs[pair, "balances", main_account, ctx.caller] >= amount, \
-		'Not enough coins approved to send! You have {} and are trying to spend {}'.format(pairs[pair, "balances", main_account, ctx.caller], amount)
-	assert pairs[pair, "balances", main_account] >= amount, 'Not enough coins to send!'
-	
-	pairs[pair, "balances", main_account, ctx.caller] = pairs[pair, "balances", main_account, ctx.caller] - amount
-	pairs[pair, "balances", main_account] = pairs[pair, "balances", main_account] - amount
-	pairs[pair, "balances", to] = pairs[pair, "balances", to] + amount
-	
-	TransferLiq({"pair": pair, "from": main_account, "to": to, "amount": amount})
+def lpTokenFor(pair: int):
+	assert pair_exists(pair), "SNAKX: INVALID_PAIR"
+	lp_token = pairs[pair, "lpToken"]
+	assert lp_token is not None and lp_token != 0, "SNAKX: NO_LP_TOKEN"
+	return lp_token
 
 
 def safeTransferFromPair(pair: int, token: str, to: str, value: float):
@@ -402,8 +400,8 @@ def internal_mintFee(pair: int, reserve0: float, reserve1: float):
 def internal_burn(pair: int, src: str, value: float):
 	pairs[pair, "totalSupply"] = pairs[pair, "totalSupply"] - value
 	assert pairs[pair, "totalSupply"] >= 0, "Negative supply!"
-	pairs[pair, "balances", src] = pairs[pair, "balances", src] - value
-	assert pairs[pair, "balances", src] >= 0, "Negative balance!"
+	assert src == ctx.this, "SNAKX: INVALID_LP_BURN_SOURCE"
+	load_lp_token_for(pair).burn(value)
 
 
 def validate_fee_bps(fee_bps: int):
@@ -471,7 +469,7 @@ def burn(pair: int, to: str):
 	balance0 = pairs[pair, "balance0"]
 	balance1 = pairs[pair, "balance1"]
 
-	liquidity = pairs[pair, "balances", ctx.this]
+	liquidity = lp_balance_of(pair, ctx.this)
 	
 	feeOn = internal_mintFee(pair, reserve0, reserve1)
 	totalSupply = pairs[pair, "totalSupply"]
@@ -500,7 +498,7 @@ def burn(pair: int, to: str):
 
 def internal_mint(pair: int, to: str, value: float):
 	pairs[pair, "totalSupply"] = pairs[pair, "totalSupply"] + value
-	pairs[pair, "balances", to] = pairs[pair, "balances", to] + value
+	load_lp_token_for(pair).mint(value, to)
 
 #noreentry
 @export
