@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ChevronDown, Plus, Minus, Info } from "lucide-react";
+import { ChevronDown, Plus, Minus, Info, Settings as SettingsIcon } from "lucide-react";
 import { TokenIcon } from "../components/TokenIcon";
 import { TokenSelectorModal } from "../components/TokenSelectorModal";
+import { SettingsModal } from "../components/SettingsModal";
 import { useWallet } from "../hooks/useWallet";
 import { useSettings } from "../hooks/useSettings";
 import { useToasts } from "../hooks/useToasts";
@@ -58,6 +59,7 @@ export default function Liquidity() {
   const [removeAmount, setRemoveAmount] = useState("");
   const [busy, setBusy] = useState(false);
   const [reload, setReload] = useState(0);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // seed initial tokens / pair
   useEffect(() => {
@@ -356,18 +358,28 @@ export default function Liquidity() {
       <div className="card">
         <div className="card-header">
           <h2>Liquidity</h2>
-          <div className="tab-row">
+          <div className="card-actions">
+            <div className="tab-row">
+              <button
+                className={"tab " + (mode === "add" ? "tab-active" : "")}
+                onClick={() => setMode("add")}
+              >
+                <Plus size={12} /> Add
+              </button>
+              <button
+                className={"tab " + (mode === "remove" ? "tab-active" : "")}
+                onClick={() => setMode("remove")}
+              >
+                <Minus size={12} /> Remove
+              </button>
+            </div>
             <button
-              className={"tab " + (mode === "add" ? "tab-active" : "")}
-              onClick={() => setMode("add")}
+              className="icon-btn"
+              title="Settings"
+              aria-label="Settings"
+              onClick={() => setSettingsOpen(true)}
             >
-              <Plus size={12} /> Add
-            </button>
-            <button
-              className={"tab " + (mode === "remove" ? "tab-active" : "")}
-              onClick={() => setMode("remove")}
-            >
-              <Minus size={12} /> Remove
+              <SettingsIcon size={14} />
             </button>
           </div>
         </div>
@@ -511,9 +523,15 @@ export default function Liquidity() {
               <button
                 className="btn btn-primary btn-block"
                 onClick={() => wallet.connect()}
-                disabled={!wallet.available}
+                disabled={!wallet.available || wallet.connecting}
               >
-                Connect Wallet
+                {!wallet.available
+                  ? "Wallet missing"
+                  : wallet.connecting
+                    ? "Connecting…"
+                    : wallet.info?.locked
+                      ? "Unlock Wallet"
+                      : "Connect Wallet"}
               </button>
             ) : !tokenA || !tokenB ? (
               <button className="btn btn-primary btn-block" disabled>
@@ -632,9 +650,15 @@ export default function Liquidity() {
               <button
                 className="btn btn-primary btn-block"
                 onClick={() => wallet.connect()}
-                disabled={!wallet.available}
+                disabled={!wallet.available || wallet.connecting}
               >
-                Connect Wallet
+                {!wallet.available
+                  ? "Wallet missing"
+                  : wallet.connecting
+                    ? "Connecting…"
+                    : wallet.info?.locked
+                      ? "Unlock Wallet"
+                      : "Connect Wallet"}
               </button>
             ) : !pair ? (
               <Link to="/portfolio" className="btn btn-ghost btn-block">
@@ -671,6 +695,7 @@ export default function Liquidity() {
         exclude={tokenA?.contract}
         account={wallet.account}
       />
+      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
   );
 }

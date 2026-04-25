@@ -1,3 +1,5 @@
+import os
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -6,13 +8,21 @@ from xian_runtime_types.decimal import ContractingDecimal
 from xian_runtime_types.time import Datetime
 
 ROOT = Path(__file__).resolve().parents[1]
-CONTRACTS_ROOT = ROOT.parent
+WORKSPACE_ROOT = Path(
+    os.environ.get("XIAN_WORKSPACE_ROOT", ROOT.parent)
+).expanduser()
+XIAN_CONTRACTS_ROOT = Path(
+    os.environ.get(
+        "XIAN_CONTRACTS_ROOT",
+        WORKSPACE_ROOT / "xian-contracts" / "contracts",
+    )
+).expanduser()
 DEX_PAIRS_PATH = ROOT / "src" / "con_pairs.py"
 DEX_ROUTER_PATH = ROOT / "src" / "con_dex.py"
 LP_TOKEN_PATH = ROOT / "src" / "con_lp_token.py"
-XSC001_PATH = CONTRACTS_ROOT / "xsc001" / "src" / "con_xsc001.py"
+XSC001_PATH = XIAN_CONTRACTS_ROOT / "xsc001" / "src" / "con_xsc001.py"
 SHIELDED_NOTE_TOKEN_PATH = (
-    CONTRACTS_ROOT
+    XIAN_CONTRACTS_ROOT
     / "shielded-note-token"
     / "src"
     / "con_shielded_note_token.py"
@@ -100,7 +110,10 @@ def get_vk_info(vk_id: str):
 
 class TestDexRouter(unittest.TestCase):
     def setUp(self):
-        self.client = ContractingClient()
+        self._storage_home = tempfile.TemporaryDirectory()
+        self.client = ContractingClient(
+            storage_home=Path(self._storage_home.name)
+        )
         self.client.flush()
 
         with DEX_PAIRS_PATH.open() as f:
@@ -145,7 +158,11 @@ class TestDexRouter(unittest.TestCase):
             self.tax.approve(amount=5000, to="con_dex", signer=account)
 
     def tearDown(self):
-        self.client.flush()
+        try:
+            self.client.flush()
+        finally:
+            self.client.raw_driver._store.close()
+            self._storage_home.cleanup()
 
     def assertAmountEqual(self, actual, expected):
         actual_value = ContractingDecimal(str(actual))
@@ -249,6 +266,10 @@ class TestDexRouter(unittest.TestCase):
         )
         return lp_token, pair_id
 
+    @unittest.skipUnless(
+        XSC001_PATH.exists(),
+        f"missing sibling xian-contracts XSC001 fixture: {XSC001_PATH}",
+    )
     def test_bound_lp_token_is_xsc001_and_receives_minted_liquidity(self):
         with XSC001_PATH.open() as f:
             self.client.submit(f.read(), name="con_xsc001")
@@ -1041,9 +1062,12 @@ class TestDexRouter(unittest.TestCase):
             zero_fee_output,
         )
 
-    def test_shielded_public_token_pair_supports_liquidity_swap_and_remove(
-        self,
-    ):
+    @unittest.skipUnless(
+        SHIELDED_NOTE_TOKEN_PATH.exists(),
+        "missing sibling xian-contracts shielded note token fixture: "
+        f"{SHIELDED_NOTE_TOKEN_PATH}",
+    )
+    def test_shielded_public_token_pair_supports_liquidity_swap_and_remove(self):
         lp_token, pair_id = self.bootstrap_shielded_public_tokens()
 
         added = self.dex.addLiquidity(

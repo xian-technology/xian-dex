@@ -1,18 +1,16 @@
 import { NavLink } from "react-router-dom";
-import { Settings as SettingsIcon, Wallet as WalletIcon, Zap, AlertTriangle, History } from "lucide-react";
+import { Wallet as WalletIcon, Zap, AlertTriangle, History, Lock } from "lucide-react";
 import { useState } from "react";
 import { useWallet } from "../hooks/useWallet";
 import { useTxHistory } from "../hooks/useTxHistory";
 import { useChainCheck } from "../hooks/useChainCheck";
 import { shortAddress, copyToClipboard } from "../lib/format";
-import { SettingsModal } from "./SettingsModal";
 import { TxHistoryDrawer } from "./TxHistoryDrawer";
 
-export function Header({ onRpcChange }: { onRpcChange?: () => void }) {
+export function Header() {
   const wallet = useWallet();
   const txs = useTxHistory();
   const chain = useChainCheck();
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const pendingCount = txs.filter((t) => t.status === "pending").length;
@@ -59,6 +57,14 @@ export function Header({ onRpcChange }: { onRpcChange?: () => void }) {
             <AlertTriangle size={12} /> No wallet
           </span>
         )}
+        {wallet.available && wallet.info?.locked && !wallet.account && (
+          <span
+            className="badge badge-warn"
+            title="Open your Xian wallet extension and unlock it with your password to connect."
+          >
+            <Lock size={12} /> Wallet locked
+          </span>
+        )}
         {chain.mismatch && (
           <span
             className="badge badge-danger"
@@ -77,9 +83,18 @@ export function Header({ onRpcChange }: { onRpcChange?: () => void }) {
             className="btn btn-primary"
             disabled={wallet.connecting || !wallet.available}
             onClick={() => wallet.connect()}
+            title={
+              wallet.info?.locked
+                ? "Your wallet is locked. Click to open the unlock prompt."
+                : undefined
+            }
           >
-            <WalletIcon size={14} />
-            {wallet.connecting ? "Connecting…" : "Connect Wallet"}
+            {wallet.info?.locked ? <Lock size={14} /> : <WalletIcon size={14} />}
+            {wallet.connecting
+              ? "Connecting…"
+              : wallet.info?.locked
+                ? "Unlock Wallet"
+                : "Connect Wallet"}
           </button>
         )}
         <button
@@ -92,16 +107,8 @@ export function Header({ onRpcChange }: { onRpcChange?: () => void }) {
           <History size={16} />
           {pendingCount > 0 && <span className="dot dot-accent" />}
         </button>
-        <button
-          className="icon-btn"
-          aria-label="Settings"
-          onClick={() => setSettingsOpen(true)}
-        >
-          <SettingsIcon size={16} />
-        </button>
       </div>
 
-      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} onChange={onRpcChange} />
       <TxHistoryDrawer open={historyOpen} onClose={() => setHistoryOpen(false)} />
     </header>
   );

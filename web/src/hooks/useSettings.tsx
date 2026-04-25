@@ -1,10 +1,24 @@
-import { useCallback, useEffect, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode
+} from "react";
 import { STORAGE_KEYS } from "../lib/constants";
 
 export interface Settings {
   slippageBps: number; // basis points (50 = 0.5%)
   deadlineMin: number; // minutes
   infiniteApproval: boolean;
+}
+
+export interface SettingsContextValue extends Settings {
+  setSlippageBps: (bps: number) => void;
+  setDeadlineMin: (m: number) => void;
+  setInfiniteApproval: (on: boolean) => void;
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -29,7 +43,9 @@ function read(): Settings {
   }
 }
 
-export function useSettings() {
+const SettingsContext = createContext<SettingsContextValue | null>(null);
+
+export function SettingsProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<Settings>(read);
 
   useEffect(() => {
@@ -51,5 +67,16 @@ export function useSettings() {
     setSettings((s) => ({ ...s, infiniteApproval: on }));
   }, []);
 
-  return { ...settings, setSlippageBps, setDeadlineMin, setInfiniteApproval };
+  const value = useMemo<SettingsContextValue>(
+    () => ({ ...settings, setSlippageBps, setDeadlineMin, setInfiniteApproval }),
+    [settings, setSlippageBps, setDeadlineMin, setInfiniteApproval]
+  );
+
+  return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
+}
+
+export function useSettings(): SettingsContextValue {
+  const ctx = useContext(SettingsContext);
+  if (!ctx) throw new Error("useSettings must be used inside <SettingsProvider>");
+  return ctx;
 }

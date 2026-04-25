@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout xian-dex
+        uses: actions/checkout@v6
+        with:
+          path: xian-dex
+
+      - name: Checkout xian-contracting
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ github.repository_owner }}/xian-contracting
+          ref: main
+          path: xian-contracting
+
+      - name: Checkout xian-linter
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ github.repository_owner }}/xian-linter
+          ref: main
+          path: xian-linter
+
+      - name: Checkout xian-contracts
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ github.repository_owner }}/xian-contracts
+          ref: main
+          path: xian-contracts
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Sync dependencies
+        working-directory: xian-dex
+        run: uv sync --group dev
+
+      - name: Ruff lint
+        working-directory: xian-dex
+        run: uv run ruff check .
+
+      - name: Contract validation
+        working-directory: xian-dex
+        run: uv run python scripts/validate_contracts.py
+
+      - name: Run tests
+        working-directory: xian-dex
+        run: uv run pytest -q
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run build

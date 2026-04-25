@@ -1,3 +1,4 @@
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -48,7 +49,10 @@ def balance_of(address: str):
 
 class TestDexHelper(unittest.TestCase):
     def setUp(self):
-        self.client = ContractingClient()
+        self._storage_home = tempfile.TemporaryDirectory()
+        self.client = ContractingClient(
+            storage_home=Path(self._storage_home.name)
+        )
         self.client.flush()
 
         with DEX_PAIRS_PATH.open() as f:
@@ -133,7 +137,11 @@ class TestDexHelper(unittest.TestCase):
         )
 
     def tearDown(self):
-        self.client.flush()
+        try:
+            self.client.flush()
+        finally:
+            self.client.raw_driver._store.close()
+            self._storage_home.cleanup()
 
     def submit_lp_token(self, name):
         with LP_TOKEN_PATH.open() as f:

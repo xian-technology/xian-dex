@@ -519,7 +519,13 @@ export default function Swap() {
             onClick={() => wallet.connect()}
             disabled={!wallet.available || wallet.connecting}
           >
-            {wallet.available ? (wallet.connecting ? "Connecting…" : "Connect Wallet") : "Wallet missing"}
+            {!wallet.available
+              ? "Wallet missing"
+              : wallet.connecting
+                ? "Connecting…"
+                : wallet.info?.locked
+                  ? "Unlock Wallet"
+                  : "Connect Wallet"}
           </button>
         ) : !fromToken || !toToken ? (
           <button className="btn btn-primary btn-block" disabled>

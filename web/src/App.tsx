@@ -4,6 +4,8 @@ import { Header } from "./components/Header";
 import { Toasts } from "./components/Toasts";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { ToastProvider } from "./hooks/useToasts";
+import { SettingsProvider } from "./hooks/useSettings";
+import { WalletProvider } from "./hooks/useWallet";
 import { invalidatePairCache } from "./lib/dex";
 import { clearTokenCache } from "./lib/tokens";
 import { listTxs, reconcilePendingTxs, subscribe as subscribeTxs } from "./lib/txHistory";
@@ -53,36 +55,40 @@ export default function App() {
 
   return (
     <ToastProvider>
-      <BrowserRouter>
-        <div className="app-shell">
-          <Header />
-          <main className="app-main">
-            <ErrorBoundary>
-              <Suspense fallback={<div className="empty">Loading…</div>}>
-                <Routes>
-                  <Route path="/" element={<Navigate to="/swap" replace />} />
-                  <Route path="/swap" element={<Swap />} />
-                  <Route path="/pools" element={<Pools />} />
-                  <Route path="/pools/:id" element={<PairDetail />} />
-                  <Route path="/liquidity" element={<Liquidity />} />
-                  <Route path="/portfolio" element={<Portfolio />} />
-                  <Route path="*" element={<Navigate to="/swap" replace />} />
-                </Routes>
-              </Suspense>
-            </ErrorBoundary>
-          </main>
-          <footer className="app-footer">
-            <span className="muted small">SnakX • Xian DEX</span>
-            <span className="muted small">
-              Built on{" "}
-              <a href="https://xian.org" className="link" target="_blank" rel="noreferrer">
-                xian.org
-              </a>
-            </span>
-          </footer>
-          <Toasts />
-        </div>
-      </BrowserRouter>
+      <SettingsProvider>
+        <WalletProvider>
+          <BrowserRouter>
+          <div className="app-shell">
+            <Header />
+            <main className="app-main">
+              <ErrorBoundary>
+                <Suspense fallback={<div className="empty">Loading…</div>}>
+                  <Routes>
+                    <Route path="/" element={<Navigate to="/swap" replace />} />
+                    <Route path="/swap" element={<Swap />} />
+                    <Route path="/pools" element={<Pools />} />
+                    <Route path="/pools/:id" element={<PairDetail />} />
+                    <Route path="/liquidity" element={<Liquidity />} />
+                    <Route path="/portfolio" element={<Portfolio />} />
+                    <Route path="*" element={<Navigate to="/swap" replace />} />
+                  </Routes>
+                </Suspense>
+              </ErrorBoundary>
+            </main>
+            <footer className="app-footer">
+              <span className="muted small">SnakX • Xian DEX</span>
+              <span className="muted small">
+                Built on{" "}
+                <a href="https://xian.org" className="link" target="_blank" rel="noreferrer">
+                  xian.org
+                </a>
+              </span>
+            </footer>
+            <Toasts />
+          </div>
+          </BrowserRouter>
+        </WalletProvider>
+      </SettingsProvider>
     </ToastProvider>
   );
 }

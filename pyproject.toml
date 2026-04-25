@@ -1,0 +1,35 @@
+[project]
+name = "xian-dex"
+version = "0.1.0"
+description = "Xian DEX contracts and SnakX web frontend"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "xian-tech-accounts>=0.1.0,<1",
+    "xian-tech-contracting[zk]>=1.0.1,<2",
+    "xian-tech-linter>=0.3.0,<1",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2,<10",
+    "ruff>=0.15.6,<0.16",
+]
+
+[tool.uv.sources]
+xian-tech-accounts = { path = "../xian-contracting/packages/xian-accounts", editable = true }
+xian-tech-contracting = { path = "../xian-contracting", editable = true }
+xian-tech-linter = { path = "../xian-linter", editable = true }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+
+[tool.ruff]
+line-length = 80
+target-version = "py312"
+extend-exclude = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+ignore = ["E501"]

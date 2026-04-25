@@ -1,11 +1,37 @@
-# DEX
+# xian-dex
 
-Multi-contract decentralized exchange package with pair management, router
-logic, and convenience helpers.
+`xian-dex` owns the Xian DEX product surface:
+
+- the canonical AMM contracts under `src/`
+- contract tests under `tests/`
+- the SnakX web frontend under `web/`
+- localnet/bootstrap consumers that deploy `con_pairs`, `con_dex`,
+  `con_dex_helper`, and LP token contracts
 
 ## Status
 
 `candidate`
+
+The contracts are usable and covered by package-local tests, but still deserve
+deeper hardening before being treated as a polished production drop-in.
+
+## Quick Start
+
+```bash
+uv sync --group dev
+uv run python scripts/validate_contracts.py
+uv run pytest
+```
+
+The Python workspace expects sibling `xian-contracting` and `xian-linter`
+checkouts, matching the rest of the Xian repo set.
+
+```bash
+cd web
+npm install
+npm run dev
+npm run build
+```
 
 ## Contracts
 
@@ -16,12 +42,19 @@ logic, and convenience helpers.
 - `src/con_lp_token.py`: XSC001-compatible LP token template for pairs that
   should mint transferable LP tokens
 
+## Web Frontend
+
+The SnakX frontend is a Vite + React app in `web/`. It talks to the canonical
+contract names (`con_pairs`, `con_dex`, and `con_dex_helper`) through
+`@xian-tech/client` reads and the injected browser wallet provider for writes.
+
+See [web/README.md](web/README.md) for route-level and wallet integration
+details.
+
 ## Notes
 
 - This package is tightly coupled internally and should be reviewed as one
   system.
-- The contracts use an older code style and deserve deeper hardening before
-  being treated as a polished production drop-in.
 - `con_dex_helper.py` is wired to the package router name `con_dex`.
 - Router liquidity paths now return and enforce actual received amounts, which
   matters for fee-on-transfer tokens.
@@ -56,5 +89,10 @@ logic, and convenience helpers.
 
 ## Validation
 
-- repo-wide lint and compile checks
+- contract lint and compile checks via `scripts/validate_contracts.py`
 - package-local router integration tests
+- frontend TypeScript build via `npm run build`
+
+Some optional integration assertions use contracts that still live in the
+sibling `xian-contracts` checkout. Set `XIAN_CONTRACTS_ROOT` when that checkout
+is not at `../xian-contracts/contracts`.
