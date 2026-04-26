@@ -5,6 +5,7 @@
 - the canonical AMM contracts under `src/`
 - contract tests under `tests/`
 - the SnakX web frontend under `web/`
+- `contract-bundle.json` for hash-pinned consumers and release snapshots
 - localnet/bootstrap consumers that deploy `con_pairs`, `con_dex`,
   `con_dex_helper`, and LP token contracts
 
@@ -41,6 +42,8 @@ npm run build
   buy/sell flows
 - `src/con_lp_token.py`: XSC001-compatible LP token template for pairs that
   should mint transferable LP tokens
+- `contract-bundle.json`: machine-readable bundle manifest with source hashes,
+  contract roles, deployment order, and default chi budgets
 
 ## Web Frontend
 
@@ -90,6 +93,7 @@ details.
 ## Validation
 
 - contract lint and compile checks via `scripts/validate_contracts.py`
+- contract bundle hash validation via `scripts/validate_contracts.py`
 - package-local router integration tests
 - frontend TypeScript build via `npm run build`
 
