@@ -38,6 +38,90 @@ npm run dev      # local dev server
 npm run build    # production build
 ```
 
+## Deployment and Integration
+
+There are three supported ways to consume the DEX, depending on what you are
+building:
+
+| Consumer | Use this | Why |
+| --- | --- | --- |
+| Localnet / release harness | `xian-stack` targets such as `make localnet-dex-bootstrap` | exercises the canonical bootstrap path used by stack validation |
+| Operators / app starters | `xian-cli module install dex` from `xian-configs` | installs the packaged, reusable DEX module onto a running network |
+| Dapps / custom tooling | `contract-bundle.json` and the canonical contract names | verifies source hashes and knows deployment order / roles |
+
+Validate the bundle from this repo:
+
+```bash
+uv run python scripts/validate_contracts.py
+uv run --project ../xian-cli xian contract bundle validate contract-bundle.json
+```
+
+Bootstrap DEX contracts into a stack localnet:
+
+```bash
+cd ../xian-stack
+make localnet-init
+make localnet-up
+make localnet-dex-bootstrap
+```
+
+Install the packaged DEX module through the operator CLI:
+
+```bash
+uv run --project ../xian-cli xian module show dex
+uv run --project ../xian-cli xian module validate dex
+uv run --project ../xian-cli xian module install dex \
+  --rpc-url http://127.0.0.1:26657 \
+  --deployer-private-key "$XIAN_PRIVATE_KEY" \
+  --top-up-liquidity \
+  --emit-test-swap
+```
+
+Read DEX state from Python:
+
+```python
+from xian_py import Xian
+
+with Xian("http://127.0.0.1:26657") as client:
+    pair = client.contract("con_pairs").call(
+        "pairFor",
+        tokenA="currency",
+        tokenB="demo_token",
+    )
+    reserves = client.contract("con_pairs").call("getReserves", pair=pair)
+    quote = client.contract("con_dex").call(
+        "getAmountsOut",
+        amountIn=10,
+        src="currency",
+        path=[pair],
+    )
+    print(pair, reserves, quote)
+```
+
+Read DEX state from TypeScript:
+
+```ts
+import { XianClient } from "@xian-tech/client";
+
+const client = new XianClient({ rpcUrl: "http://127.0.0.1:26657" });
+const pair = await client.contract("con_pairs").call("pairFor", {
+  tokenA: "currency",
+  tokenB: "demo_token",
+});
+const quote = await client.contract("con_dex").call("getAmountsOut", {
+  amountIn: 10,
+  src: "currency",
+  path: [pair],
+});
+
+console.log(pair, quote);
+```
+
+The frontend defaults to the public node RPC and lets users change the RPC
+from the Settings modal. For local testing, point it at the same local node
+used for bootstrap and make sure the browser wallet is connected to that
+chain before sending transactions.
+
 ## Principles
 
 - **One coupled system.** Contracts and frontend ship together; review and
