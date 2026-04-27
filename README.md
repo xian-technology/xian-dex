@@ -10,6 +10,22 @@ tightly-coupled system. Operator automation that watches DEX events and
 acts on them lives in [`xian-dex-automation`](../xian-dex-automation), not
 here.
 
+## Product Shape
+
+```mermaid
+flowchart LR
+  Source["Contract sources"] --> Bundle["contract-bundle.json"]
+  Bundle --> Configs["xian-configs dex module"]
+  Configs --> CLI["xian-cli module install dex"]
+  Configs --> Stack["xian-stack localnet bootstrap"]
+  CLI --> Chain["Running Xian network"]
+  Stack --> Chain
+  Web["SnakX web frontend"] -->|reads through SDK| Chain
+  Web -->|writes through wallet provider| Wallet["Browser wallet"]
+  Wallet --> Chain
+  Events["DEX events"] --> Automation["xian-dex-automation"]
+```
+
 ## Status
 
 `candidate`. Contracts are usable and covered by package-local tests, but

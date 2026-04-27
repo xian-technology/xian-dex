@@ -22,6 +22,18 @@ Current coverage:
 - helper absolute-deadline enforcement
 - helper quote behavior for zero-fee trader accounts
 
+```mermaid
+flowchart LR
+  Fixtures["Contract fixtures"] --> PairTests["Pair and reserve tests"]
+  Fixtures --> RouterTests["Router swap and liquidity tests"]
+  Fixtures --> LPTests["LP token tests"]
+  Fixtures --> FeeTests["Fee-on-transfer and zero-fee tests"]
+  PairTests --> Pytest["pytest"]
+  RouterTests --> Pytest
+  LPTests --> Pytest
+  FeeTests --> Pytest
+```
+
 Still worth adding:
 
 - deeper economic simulations around feeTo and fee-tier configuration

@@ -36,6 +36,18 @@ signs and broadcasts; the dapp never holds keys.
 The header detects whether the wallet is injected and shows a "No wallet"
 chip if it is missing. Account / chain change events are observed.
 
+```mermaid
+flowchart LR
+  Page["Swap, pools, liquidity, or portfolio page"] --> Client["Shared XianClient"]
+  Page --> WalletHook["useWallet hook"]
+  Client --> Reads["ABCI reads and simulations"]
+  WalletHook --> Provider["window.xian.provider"]
+  Provider --> Writes["xian_sendCall writes"]
+  Reads --> Node["Xian node"]
+  Writes --> Node
+  Settings["Settings modal"] --> Client
+```
+
 ## Local development
 
 ```bash
