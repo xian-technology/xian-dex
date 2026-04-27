@@ -1067,7 +1067,9 @@ class TestDexRouter(unittest.TestCase):
         "missing sibling xian-contracts shielded note token fixture: "
         f"{SHIELDED_NOTE_TOKEN_PATH}",
     )
-    def test_shielded_public_token_pair_supports_liquidity_swap_and_remove(self):
+    def test_shielded_public_token_pair_supports_liquidity_swap_and_remove(
+        self,
+    ):
         lp_token, pair_id = self.bootstrap_shielded_public_tokens()
 
         added = self.dex.addLiquidity(

@@ -28,11 +28,14 @@ export function formatNumber(value: number | string | bigint, maxDecimals = 6): 
   if (!Number.isFinite(n)) return "0";
   if (n === 0) return "0";
   const abs = Math.abs(n);
-  let decimals = maxDecimals;
-  if (abs >= 1000) decimals = Math.min(2, maxDecimals);
-  else if (abs >= 1) decimals = Math.min(4, maxDecimals);
-  else if (abs >= 0.0001) decimals = Math.min(6, maxDecimals);
-  else decimals = Math.min(8, maxDecimals);
+  const decimals =
+    abs >= 1000
+      ? Math.min(2, maxDecimals)
+      : abs >= 1
+        ? Math.min(4, maxDecimals)
+        : abs >= 0.0001
+          ? Math.min(6, maxDecimals)
+          : Math.min(8, maxDecimals);
   return n.toLocaleString("en-US", {
     maximumFractionDigits: decimals,
     minimumFractionDigits: 0

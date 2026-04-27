@@ -378,8 +378,8 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "pytest", specifier = ">=9.0.2,<10" },
-    { name = "ruff", specifier = ">=0.15.6,<0.16" },
+    { name = "pytest", specifier = ">=9.0.3,<10" },
+    { name = "ruff", specifier = ">=0.15.12,<0.16" },
 ]
 
 [[package]]
@@ -411,8 +411,8 @@ zk = [
 
 [package.metadata]
 requires-dist = [
-    { name = "cachetools", specifier = ">=5,<8" },
-    { name = "lmdb", specifier = ">=1.6,<3" },
+    { name = "cachetools", specifier = ">=7.0.6,<8" },
+    { name = "lmdb", specifier = ">=2.2.0,<3" },
     { name = "pynacl", specifier = ">=1.5.0,<2" },
     { name = "xian-tech-fastpath-core", marker = "extra == 'native'", editable = "../xian-contracting/packages/xian-fastpath-core" },
     { name = "xian-tech-native-tracer", marker = "extra == 'native'", editable = "../xian-contracting/packages/xian-native-tracer" },
@@ -423,10 +423,10 @@ provides-extras = ["native", "zk"]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "hypothesis", specifier = ">=6.147.0,<7" },
-    { name = "pytest", specifier = ">=9.0.2,<10" },
-    { name = "pytest-cov", specifier = ">=7.0.0,<8" },
-    { name = "ruff", specifier = ">=0.15.6,<0.16" },
+    { name = "hypothesis", specifier = ">=6.152.3,<7" },
+    { name = "pytest", specifier = ">=9.0.3,<10" },
+    { name = "pytest-cov", specifier = ">=7.1.0,<8" },
+    { name = "ruff", specifier = ">=0.15.12,<0.16" },
 ]
 
 [[package]]
@@ -443,7 +443,7 @@ dependencies = [
 requires-dist = [
     { name = "fastapi", marker = "extra == 'server'", specifier = ">=0.115.6,<1" },
     { name = "pydantic", specifier = ">=2,<3" },
-    { name = "pyflakes", specifier = ">=3.2,<4" },
+    { name = "pyflakes", specifier = ">=3.4,<4" },
     { name = "uvicorn", marker = "extra == 'server'", specifier = ">=0.34,<1" },
     { name = "xian-tech-contracting", editable = "../xian-contracting" },
 ]
@@ -451,8 +451,8 @@ provides-extras = ["server"]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "pytest", specifier = ">=9.0.2,<10" },
-    { name = "ruff", specifier = ">=0.15.6,<0.16" },
+    { name = "pytest", specifier = ">=9.0.3,<10" },
+    { name = "ruff", specifier = ">=0.15.12,<0.16" },
 ]
 
 [[package]]
@@ -473,6 +473,6 @@ requires-dist = [{ name = "pynacl", specifier = ">=1.5.0,<2" }]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "maturin", specifier = ">=1.8,<2" },
-    { name = "pytest", specifier = ">=9.0.2,<10" },
+    { name = "maturin", specifier = ">=1.13.1,<2" },
+    { name = "pytest", specifier = ">=9.0.3,<10" },
 ]

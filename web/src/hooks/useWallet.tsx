@@ -111,16 +111,15 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   useEffect(() => {
-    let timer: number | undefined;
     const detectInjection = () => {
       if (isWalletAvailable()) {
         setState((s) => ({ ...s, available: true }));
         void refresh();
-        if (timer) window.clearInterval(timer);
+        window.clearInterval(timer);
       }
     };
+    const timer = window.setInterval(detectInjection, 600);
     detectInjection();
-    timer = window.setInterval(detectInjection, 600);
     const stop1 = onAccountsChanged((accounts) => {
       setState((s) => ({ ...s, account: accounts[0] ?? null }));
       // Re-fetch info so derived flags like `locked` track unlock/relock from
@@ -131,7 +130,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       setState((s) => ({ ...s, chainId }));
     });
     return () => {
-      if (timer) window.clearInterval(timer);
+      window.clearInterval(timer);
       stop1();
       stop2();
     };

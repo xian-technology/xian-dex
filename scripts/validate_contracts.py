@@ -63,7 +63,9 @@ def validate_bundle_manifest() -> None:
         rel_path = contract.get("path")
         expected_sha256 = contract.get("sha256")
         if not isinstance(name, str) or not name:
-            fail("contract-bundle.json contract name must be a non-empty string")
+            fail(
+                "contract-bundle.json contract name must be a non-empty string"
+            )
         if name in names:
             fail(f"contract-bundle.json has duplicate contract name: {name}")
         names.add(name)
