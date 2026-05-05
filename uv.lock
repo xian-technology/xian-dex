@@ -376,8 +376,9 @@ requires-dist = [
     { name = "pyflakes", specifier = ">=3.4,<4" },
     { name = "uvicorn", marker = "extra == 'server'", specifier = ">=0.34,<1" },
     { name = "xian-tech-contracting", editable = "../xian-contracting" },
+    { name = "xian-tech-vm-core", marker = "extra == 'vm'", editable = "../xian-contracting/packages/xian-vm-core" },
 ]
-provides-extras = ["server"]
+provides-extras = ["server", "vm"]
 
 [package.metadata.requires-dev]
 dev = [
