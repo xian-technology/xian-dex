@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from contracting.client import ContractingClient
+from contracting.local import ContractingClient
 from xian_runtime_types.decimal import ContractingDecimal
 from xian_runtime_types.time import Datetime
 
@@ -66,12 +66,12 @@ class TestDexHelper(unittest.TestCase):
         self.client.submit(PLAIN_TOKEN, name="con_plain_out")
         self.client.submit(PLAIN_TOKEN, name="con_plain_alt")
 
-        self.pairs = self.client.get_contract("con_pairs")
-        self.dex = self.client.get_contract("con_dex")
-        self.helper = self.client.get_contract("con_dex_helper")
-        self.currency = self.client.get_contract("currency")
-        self.out = self.client.get_contract("con_plain_out")
-        self.alt = self.client.get_contract("con_plain_alt")
+        self.pairs = self.client.get_contract_proxy("con_pairs")
+        self.dex = self.client.get_contract_proxy("con_dex")
+        self.helper = self.client.get_contract_proxy("con_dex_helper")
+        self.currency = self.client.get_contract_proxy("currency")
+        self.out = self.client.get_contract_proxy("con_plain_out")
+        self.alt = self.client.get_contract_proxy("con_plain_alt")
 
         self.operator = "sys"
         self.lp = "a" * 64

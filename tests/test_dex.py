@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from contracting.client import ContractingClient
+from contracting.local import ContractingClient
 from xian_runtime_types.decimal import ContractingDecimal
 from xian_runtime_types.time import Datetime
 
@@ -126,12 +126,12 @@ class TestDexRouter(unittest.TestCase):
         self.client.submit(PLAIN_TOKEN, name="con_plain_out")
         self.client.submit(TAXED_TOKEN, name="con_tax_token")
 
-        self.pairs = self.client.get_contract("con_pairs")
-        self.dex = self.client.get_contract("con_dex")
-        self.currency = self.client.get_contract("currency")
-        self.plain_mid = self.client.get_contract("con_plain_mid")
-        self.plain_out = self.client.get_contract("con_plain_out")
-        self.tax = self.client.get_contract("con_tax_token")
+        self.pairs = self.client.get_contract_proxy("con_pairs")
+        self.dex = self.client.get_contract_proxy("con_dex")
+        self.currency = self.client.get_contract_proxy("currency")
+        self.plain_mid = self.client.get_contract_proxy("con_plain_mid")
+        self.plain_out = self.client.get_contract_proxy("con_plain_out")
+        self.tax = self.client.get_contract_proxy("con_tax_token")
 
         self.operator = "sys"
         self.lp = "a" * 64
@@ -193,7 +193,7 @@ class TestDexRouter(unittest.TestCase):
                 },
                 signer=self.operator,
             )
-        return self.client.get_contract(name)
+        return self.client.get_contract_proxy(name)
 
     def create_pair(self, tokenA, tokenB, lp_token_name=None):
         if lp_token_name is None:
@@ -242,8 +242,8 @@ class TestDexRouter(unittest.TestCase):
             signer=self.operator,
         )
 
-        self.private_a = self.client.get_contract("con_private_a")
-        self.private_b = self.client.get_contract("con_private_b")
+        self.private_a = self.client.get_contract_proxy("con_private_a")
+        self.private_b = self.client.get_contract_proxy("con_private_b")
 
         for account in (self.lp, self.trader, self.market_maker):
             self.private_a.mint_public(
@@ -276,7 +276,7 @@ class TestDexRouter(unittest.TestCase):
         lp_token, pair_id = self.bootstrap_pair()
 
         self.assertTrue(
-            self.client.get_contract("con_xsc001").is_XSC001(
+            self.client.get_contract_proxy("con_xsc001").is_XSC001(
                 contract="con_lp_currency_tax",
                 signer=self.operator,
             )
