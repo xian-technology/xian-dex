@@ -135,15 +135,6 @@ def transfer_from(amount: float, to: str, main_account: str):
 
 
 @export
-def change_minter(new_minter: str):
-    assert ctx.caller == minter.get(), "Only minter can change minter."
-    assert isinstance(new_minter, str) and new_minter != "", (
-        "new_minter must be a non-empty string."
-    )
-    minter.set(new_minter)
-
-
-@export
 def mint(amount: float, to: str):
     assert ctx.caller == minter.get(), "Only minter can mint tokens."
     assert amount > 0, "Cannot mint negative balances."
