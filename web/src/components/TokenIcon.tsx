@@ -11,6 +11,10 @@ function colorFor(contract: string): string {
   return `hsl(${h}, 60%, 45%)`;
 }
 
+function svgDataUrl(svg: string): string {
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
 export function TokenIcon({ token, size = 28 }: Props) {
   if (!token) {
     return (
@@ -35,10 +39,12 @@ export function TokenIcon({ token, size = 28 }: Props) {
   }
   if (token.logoSvg) {
     return (
-      <span
+      <img
+        src={svgDataUrl(token.logoSvg)}
+        alt={token.symbol}
         className="token-icon"
         style={{ width: size, height: size }}
-        dangerouslySetInnerHTML={{ __html: token.logoSvg }}
+        loading="lazy"
       />
     );
   }
