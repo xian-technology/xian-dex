@@ -62,6 +62,12 @@ balances = Hash(default_value=0.0)
 LOCK = Variable()
 
 
+def locked_assert(condition: bool, message: str):
+	if not condition:
+		LOCK.set(False)
+		assert condition, message
+
+
 REQUIRED_TOKEN_EXPORTS = ("transfer_from", "transfer", "balance_of")
 REQUIRED_LP_TOKEN_EXPORTS = ("mint", "burn", "get_metadata")
 LP_TOKEN_INTERFACE = [
@@ -216,47 +222,47 @@ def lpTokenFor(pair: int):
 
 def safeTransferFromPair(pair: int, token: str, to: str, value: float):
 	value = normalize_token_amount(token, value)
-	assert value >= 0 and value <= MAXIMUM_BALANCE, 'p2a Invalid value!'
+	locked_assert(value >= 0 and value <= MAXIMUM_BALANCE, 'p2a Invalid value!')
 	t = load_token(token)
 	#tok_balances = ForeignHash(foreign_contract=token, foreign_name='balances')
 	prev_balance = t.balance_of(ctx.this)
-	
-	if(prev_balance == None):
-		prev_balance = 0
-		
-	
-	if(token == pairs[pair, "token0"]):
-		assert pairs[pair, "balance0"] >= value, 'p2a Not enough coins to send!' 
+
+		if(prev_balance == None):
+			prev_balance = 0
+
+
+		if(token == pairs[pair, "token0"]):
+		locked_assert(pairs[pair, "balance0"] >= value, 'p2a Not enough coins to send!')
 		t.transfer(value, to)
 		#new_balance = tok_balances[ctx.this]
 		new_balance = t.balance_of(ctx.this)
-		assert new_balance >= 0, "p2a Negative balance!"
+		locked_assert(new_balance >= 0, "p2a Negative balance!")
 		pairs[pair, "balance0"] = pairs[pair, "balance0"] + new_balance - prev_balance
-		assert pairs[pair, "balance0"] >= 0, "p2a Negative pair balance0!"
-		return True
-		
-	
-	elif(token == pairs[pair, "token1"]):
-		assert pairs[pair, "balance1"] >= value, 'p2a Not enough coins to send!' 
+			locked_assert(pairs[pair, "balance0"] >= 0, "p2a Negative pair balance0!")
+			return True
+
+
+		elif(token == pairs[pair, "token1"]):
+		locked_assert(pairs[pair, "balance1"] >= value, 'p2a Not enough coins to send!')
 		t.transfer(value, to)
 		#new_balance = tok_balances[ctx.this]
 		new_balance = t.balance_of(ctx.this)
-		assert new_balance >= 0, "p2a Negative balance!"
+		locked_assert(new_balance >= 0, "p2a Negative balance!")
 		pairs[pair, "balance1"] = pairs[pair, "balance1"] + new_balance - prev_balance
-		assert pairs[pair, "balance1"] >= 0, "p2a Negative pair balance1!"
+		locked_assert(pairs[pair, "balance1"] >= 0, "p2a Negative pair balance1!")
 		return True
 		
 	
-	assert False, "p2a Wrong token!"
+	locked_assert(False, "p2a Wrong token!")
 	
 	return False
 
 
 def safeTransferFromPairToPair(pair: int, token: str, to: int, value: float):
-	assert value >= 0 and value <= MAXIMUM_BALANCE, 'p2p Invalid value!'
-	
+	locked_assert(value >= 0 and value <= MAXIMUM_BALANCE, 'p2p Invalid value!')
+
 	if(token == pairs[pair, "token0"]):
-		assert pairs[pair, "balance0"] >= value, 'p2p Not enough coins to send!'
+		locked_assert(pairs[pair, "balance0"] >= value, 'p2p Not enough coins to send!')
 		
 		#prev_balance = pairs[pair, "balance0"]
 		
@@ -267,15 +273,15 @@ def safeTransferFromPairToPair(pair: int, token: str, to: int, value: float):
 		elif(pairs[to, "token1"] == token):
 			pairs[to, "balance1"] = pairs[to, "balance1"] + value
 		else:
-			assert False, "p2p No token in TO"
+			locked_assert(False, "p2p No token in TO")
 		
 		new_balance = pairs[pair, "balance0"]
 		
-		assert new_balance >= 0, "p2p Negative balance!"
+		locked_assert(new_balance >= 0, "p2p Negative balance!")
 		
 		return True
 	elif(token == pairs[pair, "token1"]):
-		assert pairs[pair, "balance1"] >= value, 'p2p Not enough coins to send!' 
+		locked_assert(pairs[pair, "balance1"] >= value, 'p2p Not enough coins to send!')
 		
 		#prev_balance = pairs[pair, "balance1"]
 		
@@ -286,15 +292,15 @@ def safeTransferFromPairToPair(pair: int, token: str, to: int, value: float):
 		elif(pairs[to, "token1"] == token):
 			pairs[to, "balance1"] = pairs[to, "balance1"] + value
 		else:
-			assert False, "p2p No token in TO"
+			locked_assert(False, "p2p No token in TO")
 		
 		new_balance = pairs[pair, "balance1"]
 		
-		assert new_balance >= 0, "p2p Negative balance!"
+		locked_assert(new_balance >= 0, "p2p Negative balance!")
 		
 		return True
 	
-	assert False, "p2p Wrong token!"
+	locked_assert(False, "p2p Wrong token!")
 	
 	return False
 
@@ -327,8 +333,8 @@ def sync(pair: int):
 def sync2(pair: int, amount0: float = 0.0, amount1: float = 0.0):
 	assert not LOCK.get(), "SNAKX: LOCKED"
 	assert ctx.caller == DEX_ROUTER, "SNAKX: FORBIDDEN"
-	LOCK.set(True)
 	assert amount0 >= 0 and amount1 >= 0, "SNAKX: NEGATIVE_AMOUNT"
+	LOCK.set(True)
 	tokenA = pairs[pair, "token0"]
 	tokenB = pairs[pair, "token1"]
 	
@@ -348,14 +354,16 @@ def sync2(pair: int, amount0: float = 0.0, amount1: float = 0.0):
 	if balB == None:
 		balB = 0.0
 
-	assert balA >= balances[tokenA] + amount0, "SNAKX: token0_missing"
-	assert balB >= balances[tokenB] + amount1, "SNAKX: token1_missing"
+	locked_assert(balA >= balances[tokenA] + amount0, "SNAKX: token0_missing")
+	locked_assert(balB >= balances[tokenB] + amount1, "SNAKX: token1_missing")
 
-	pairs[pair, "balance0"] = pairs[pair, "balance0"] + amount0
-	pairs[pair, "balance1"] = pairs[pair, "balance1"] + amount1
-	
-	assert pairs[pair, "balance0"] <= MAXIMUM_BALANCE, "SNAKX: TokenA OVERFLOW"
-	assert pairs[pair, "balance1"] <= MAXIMUM_BALANCE, "SNAKX: TokenB OVERFLOW"
+	next_balance0 = pairs[pair, "balance0"] + amount0
+	next_balance1 = pairs[pair, "balance1"] + amount1
+
+	locked_assert(next_balance0 <= MAXIMUM_BALANCE, "SNAKX: TokenA OVERFLOW")
+	locked_assert(next_balance1 <= MAXIMUM_BALANCE, "SNAKX: TokenB OVERFLOW")
+	pairs[pair, "balance0"] = next_balance0
+	pairs[pair, "balance1"] = next_balance1
 	
 	balances[tokenA] = balances[tokenA] + amount0
 	balances[tokenB] = balances[tokenB] + amount1
@@ -373,7 +381,7 @@ def getSurplus(pair: int):
 	
 #def internal_update(pair: int, balance0: float, balance1: float, UNS_reserve0: float, UNS_reserve1: float):
 def internal_update(pair: int, balance0: float, balance1: float):
-	assert balance0 <= MAXIMUM_BALANCE and balance1 <= MAXIMUM_BALANCE, "SNAKX: BALANCE OVERFLOW"
+	locked_assert(balance0 <= MAXIMUM_BALANCE and balance1 <= MAXIMUM_BALANCE, "SNAKX: BALANCE OVERFLOW")
 	pairs[pair, "reserve0"] = balance0
 	pairs[pair, "reserve1"] = balance1
 	pairs[pair, "blockTimestampLast"] = now
@@ -399,8 +407,8 @@ def internal_mintFee(pair: int, reserve0: float, reserve1: float):
 
 def internal_burn(pair: int, src: str, value: float):
 	pairs[pair, "totalSupply"] = pairs[pair, "totalSupply"] - value
-	assert pairs[pair, "totalSupply"] >= 0, "Negative supply!"
-	assert src == ctx.this, "SNAKX: INVALID_LP_BURN_SOURCE"
+	locked_assert(pairs[pair, "totalSupply"] >= 0, "Negative supply!")
+	locked_assert(src == ctx.this, "SNAKX: INVALID_LP_BURN_SOURCE")
 	load_lp_token_for(pair).burn(value)
 
 
@@ -411,19 +419,18 @@ def validate_fee_bps(fee_bps: int):
 def swap_impl(pair: int, amount0Out: float, amount1Out: float, to: Any, fee_bps: int, to_pair: bool):
 	validate_fee_bps(fee_bps)
 	assert not LOCK.get(), "SNAKX: LOCKED"
-	LOCK.set(True)
-	
 	assert amount0Out > 0 or amount1Out > 0, 'SNAKX: INSUFFICIENT_OUTPUT_AMOUNT'
 	reserve0, reserve1, ignore = getReserves(pair)
 	assert amount0Out < reserve0 and amount1Out < reserve1, 'SNAKX: INSUFFICIENT_LIQUIDITY'
 	token0 = pairs[pair, "token0"]
 	token1 = pairs[pair, "token1"]
-	amount0Out = normalize_token_amount(token0, amount0Out)
-	amount1Out = normalize_token_amount(token1, amount1Out)
-	assert amount0Out > 0 or amount1Out > 0, 'SNAKX: INSUFFICIENT_OUTPUT_AMOUNT'
-	assert amount0Out < reserve0 and amount1Out < reserve1, 'SNAKX: INSUFFICIENT_LIQUIDITY'
 	if not to_pair:
 		assert to != token0 and to != token1, 'SNAKX: INVALID_TO'
+	LOCK.set(True)
+	amount0Out = normalize_token_amount(token0, amount0Out)
+	amount1Out = normalize_token_amount(token1, amount1Out)
+	locked_assert(amount0Out > 0 or amount1Out > 0, 'SNAKX: INSUFFICIENT_OUTPUT_AMOUNT')
+	locked_assert(amount0Out < reserve0 and amount1Out < reserve1, 'SNAKX: INSUFFICIENT_LIQUIDITY')
 	
 	if amount0Out > 0:
 		if to_pair:
@@ -439,11 +446,11 @@ def swap_impl(pair: int, amount0Out: float, amount1Out: float, to: Any, fee_bps:
 	balance1 = pairs[pair, "balance1"]
 	amount0In = balance0 - (reserve0 - amount0Out) if balance0 > reserve0 - amount0Out else 0
 	amount1In = balance1 - (reserve1 - amount1Out) if balance1 > reserve1 - amount1Out else 0
-	assert amount0In > 0 or amount1In > 0, 'SNAKX: INSUFFICIENT_INPUT_AMOUNT'
+	locked_assert(amount0In > 0 or amount1In > 0, 'SNAKX: INSUFFICIENT_INPUT_AMOUNT')
 	fee_rate = fee_bps / 10000
 	balance0Adjusted = balance0 - (amount0In * fee_rate)
 	balance1Adjusted = balance1 - (amount1In * fee_rate)
-	assert (balance0Adjusted * balance1Adjusted) >= (reserve0 * reserve1), 'SNAKX: K'
+	locked_assert((balance0Adjusted * balance1Adjusted) >= (reserve0 * reserve1), 'SNAKX: K')
 
 	internal_update(pair, balance0, balance1)
 	if not to_pair:
@@ -475,7 +482,7 @@ def burn(pair: int, to: str):
 	totalSupply = pairs[pair, "totalSupply"]
 	amount0 = normalize_token_amount(token0, (liquidity * balance0) / totalSupply)
 	amount1 = normalize_token_amount(token1, (liquidity * balance1) / totalSupply)
-	assert amount0 > 0 and amount1 > 0, 'SNAKX: INSUFFICIENT_LIQUIDITY_BURNED'
+	locked_assert(amount0 > 0 and amount1 > 0, 'SNAKX: INSUFFICIENT_LIQUIDITY_BURNED')
 	internal_burn(pair, ctx.this, liquidity)
 	safeTransferFromPair(pair, token0, to, amount0)
 	safeTransferFromPair(pair, token1, to, amount1)
@@ -519,10 +526,11 @@ def mint(pair: int, to: str):
 	liquidity = 0
 	if (totalSupply == 0):
 		liquidity = ((amount0 * amount1) ** 0.5) - MINIMUM_LIQUIDITY
-		internal_mint(pair, "DEAD", MINIMUM_LIQUIDITY) # permanently lock the first MINIMUM_LIQUIDITY tokens
 	else:
 		liquidity = min((amount0 * totalSupply) / reserve0, (amount1 * totalSupply) / reserve1)
-	assert liquidity > 0, 'SNAKX: INSUFFICIENT_LIQUIDITY_MINTED'
+	locked_assert(liquidity > 0, 'SNAKX: INSUFFICIENT_LIQUIDITY_MINTED')
+	if (totalSupply == 0):
+		internal_mint(pair, "DEAD", MINIMUM_LIQUIDITY) # permanently lock the first MINIMUM_LIQUIDITY tokens
 	internal_mint(pair, to, liquidity)
 	
 	#internal_update(pair, balance0, balance1, UNS_reserve0, UNS_reserve1);
