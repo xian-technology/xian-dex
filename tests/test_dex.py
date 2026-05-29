@@ -172,6 +172,15 @@ class TestDexRouter(unittest.TestCase):
             difference = -difference
         self.assertLessEqual(difference, ContractingDecimal("0.00001"))
 
+    def reserve_product(self, pair):
+        reserve0, reserve1, _ = self.pairs.getReserves(
+            pair=pair,
+            signer=self.operator,
+        )
+        return ContractingDecimal(str(reserve0)) * ContractingDecimal(
+            str(reserve1)
+        )
+
     def submit_lp_token(
         self,
         name=None,
@@ -744,6 +753,174 @@ class TestDexRouter(unittest.TestCase):
             signer=self.operator,
         )
         self.assertGreater(owner_lp_after, owner_lp_before)
+
+    def test_protocol_fee_can_be_disabled_without_owner_liquidity_mint(self):
+        pair, lp_token, _ = self.create_pair(
+            "con_plain_mid",
+            "currency",
+        )
+        self.dex.addLiquidity(
+            tokenA="currency",
+            tokenB="con_plain_mid",
+            amountADesired=1000,
+            amountBDesired=1000,
+            amountAMin=1000,
+            amountBMin=1000,
+            to=self.lp,
+            deadline=self.deadline,
+            signer=self.lp,
+            environment={"now": self.now},
+        )
+
+        self.pairs.enableFee(en=False, signer=self.operator)
+        owner_lp_before = lp_token.balance_of(
+            address="sys",
+            signer=self.operator,
+        )
+
+        self.dex.swapExactTokenForToken(
+            amountIn=100,
+            amountOutMin=1,
+            pair=pair,
+            src="currency",
+            to=self.trader,
+            deadline=self.deadline,
+            signer=self.trader,
+            environment={"now": self.now},
+        )
+        self.dex.addLiquidity(
+            tokenA="currency",
+            tokenB="con_plain_mid",
+            amountADesired=100,
+            amountBDesired=100,
+            amountAMin=1,
+            amountBMin=1,
+            to=self.lp,
+            deadline=self.deadline,
+            signer=self.lp,
+            environment={"now": self.now},
+        )
+
+        owner_lp_after = lp_token.balance_of(
+            address="sys",
+            signer=self.operator,
+        )
+        self.assertEqual(owner_lp_after, owner_lp_before)
+        self.assertEqual(
+            self.client.get_var("con_pairs", "pairs", [pair, "kLast"]),
+            0,
+        )
+
+    def test_swap_sequence_preserves_constant_product_invariant(self):
+        pair, _, _ = self.create_pair(
+            "con_plain_mid",
+            "currency",
+        )
+        self.dex.addLiquidity(
+            tokenA="currency",
+            tokenB="con_plain_mid",
+            amountADesired=2000,
+            amountBDesired=2000,
+            amountAMin=2000,
+            amountBMin=2000,
+            to=self.lp,
+            deadline=self.deadline,
+            signer=self.lp,
+            environment={"now": self.now},
+        )
+
+        previous_product = self.reserve_product(pair)
+        for src, amount in (
+            ("currency", 100),
+            ("con_plain_mid", 80),
+            ("currency", 125),
+            ("con_plain_mid", 55),
+            ("currency", 210),
+        ):
+            self.dex.swapExactTokenForToken(
+                amountIn=amount,
+                amountOutMin=1,
+                pair=pair,
+                src=src,
+                to=self.trader,
+                deadline=self.deadline,
+                signer=self.trader,
+                environment={"now": self.now},
+            )
+            current_product = self.reserve_product(pair)
+            self.assertGreaterEqual(
+                current_product + ContractingDecimal("0.00001"),
+                previous_product,
+            )
+            previous_product = current_product
+
+    def test_large_multi_hop_route_enforces_slippage(self):
+        self.client.submit(PLAIN_TOKEN, name="con_plain_tail")
+        plain_tail = self.client.get_contract_proxy("con_plain_tail")
+        for account in (self.lp, self.trader, self.market_maker):
+            plain_tail.transfer(amount=5000, to=account, signer=self.operator)
+            plain_tail.approve(amount=5000, to="con_dex", signer=account)
+
+        pair_ab, _, _ = self.create_pair("con_plain_mid", "currency")
+        pair_bc, _, _ = self.create_pair("con_plain_mid", "con_plain_out")
+        pair_cd, _, _ = self.create_pair("con_plain_out", "con_plain_tail")
+
+        for token_a, token_b in (
+            ("currency", "con_plain_mid"),
+            ("con_plain_mid", "con_plain_out"),
+            ("con_plain_out", "con_plain_tail"),
+        ):
+            self.dex.addLiquidity(
+                tokenA=token_a,
+                tokenB=token_b,
+                amountADesired=2500,
+                amountBDesired=2500,
+                amountAMin=2500,
+                amountBMin=2500,
+                to=self.lp,
+                deadline=self.deadline,
+                signer=self.lp,
+                environment={"now": self.now},
+            )
+
+        path = [pair_ab, pair_bc, pair_cd]
+        quoted = self.dex.getAmountsOut(
+            amountIn=500,
+            src="currency",
+            path=path,
+            signer=self.trader,
+        )[-1]
+        with self.assertRaises(AssertionError):
+            self.dex.swapExactTokensForTokens(
+                amountIn=500,
+                amountOutMin=quoted + ContractingDecimal("0.00001"),
+                path=path,
+                src="currency",
+                to=self.trader,
+                deadline=self.deadline,
+                signer=self.trader,
+                environment={"now": self.now},
+            )
+
+        out_before = plain_tail.balance_of(
+            address=self.trader,
+            signer=self.operator,
+        )
+        output = self.dex.swapExactTokensForTokens(
+            amountIn=500,
+            amountOutMin=quoted,
+            path=path,
+            src="currency",
+            to=self.trader,
+            deadline=self.deadline,
+            signer=self.trader,
+            environment={"now": self.now},
+        )
+        self.assertAmountEqual(
+            plain_tail.balance_of(address=self.trader, signer=self.operator)
+            - out_before,
+            output,
+        )
 
     def test_supporting_fee_multi_hop_rejects_fee_on_transfer_bridge_token(
         self,

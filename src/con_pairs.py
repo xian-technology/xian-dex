@@ -227,22 +227,22 @@ def safeTransferFromPair(pair: int, token: str, to: str, value: float):
 	#tok_balances = ForeignHash(foreign_contract=token, foreign_name='balances')
 	prev_balance = t.balance_of(ctx.this)
 
-		if(prev_balance == None):
-			prev_balance = 0
+	if(prev_balance == None):
+		prev_balance = 0
 
 
-		if(token == pairs[pair, "token0"]):
+	if(token == pairs[pair, "token0"]):
 		locked_assert(pairs[pair, "balance0"] >= value, 'p2a Not enough coins to send!')
 		t.transfer(value, to)
 		#new_balance = tok_balances[ctx.this]
 		new_balance = t.balance_of(ctx.this)
 		locked_assert(new_balance >= 0, "p2a Negative balance!")
 		pairs[pair, "balance0"] = pairs[pair, "balance0"] + new_balance - prev_balance
-			locked_assert(pairs[pair, "balance0"] >= 0, "p2a Negative pair balance0!")
-			return True
+		locked_assert(pairs[pair, "balance0"] >= 0, "p2a Negative pair balance0!")
+		return True
 
 
-		elif(token == pairs[pair, "token1"]):
+	elif(token == pairs[pair, "token1"]):
 		locked_assert(pairs[pair, "balance1"] >= value, 'p2a Not enough coins to send!')
 		t.transfer(value, to)
 		#new_balance = tok_balances[ctx.this]

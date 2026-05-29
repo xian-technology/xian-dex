@@ -15,8 +15,8 @@ here.
 ```mermaid
 flowchart LR
   Source["Contract sources"] --> Bundle["contract-bundle.json"]
-  Bundle --> Configs["xian-configs dex module"]
-  Configs --> CLI["xian-cli module install dex"]
+  Bundle --> Configs["xian-configs dex contract pack"]
+  Configs --> CLI["xian-cli contract-pack install dex"]
   Configs --> Stack["xian-stack localnet bootstrap"]
   CLI --> Chain["Running Xian network"]
   Stack --> Chain
@@ -62,7 +62,7 @@ building:
 | Consumer | Use this | Why |
 | --- | --- | --- |
 | Localnet / release harness | `xian-stack` targets such as `make localnet-dex-bootstrap` | exercises the canonical bootstrap path used by stack validation |
-| Operators / app starters | `xian-cli module install dex` from `xian-configs` | installs the packaged, reusable DEX module onto a running network |
+| Operators / app starters | `xian-cli contract-pack install dex` from `xian-configs` | installs the packaged, reusable DEX contract pack onto a running network |
 | Dapps / custom tooling | `contract-bundle.json` and the canonical contract names | verifies source hashes and knows deployment order / roles |
 
 Validate the bundle from this repo:
@@ -81,12 +81,12 @@ make localnet-up
 make localnet-dex-bootstrap
 ```
 
-Install the packaged DEX module through the operator CLI:
+Install the packaged DEX contract pack through the operator CLI:
 
 ```bash
-uv run --project ../xian-cli xian module show dex
-uv run --project ../xian-cli xian module validate dex
-uv run --project ../xian-cli xian module install dex \
+uv run --project ../xian-cli xian contract-pack show dex
+uv run --project ../xian-cli xian contract-pack validate dex
+uv run --project ../xian-cli xian contract-pack install dex \
   --rpc-url http://127.0.0.1:26657 \
   --deployer-private-key "$XIAN_PRIVATE_KEY" \
   --top-up-liquidity \
