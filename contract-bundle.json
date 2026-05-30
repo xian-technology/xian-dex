@@ -14,7 +14,7 @@
       "name": "con_pairs",
       "role": "pairs",
       "path": "src/con_pairs.py",
-      "sha256": "5078b53c7fe47187373955a127c64f750ef8de49e9c801640e11817c02f44fb7",
+      "sha256": "a4322e95d07c5bc2581a7fbcb141619f5557a7883b0104f368e4b174220fefd9",
       "deploy_order": 10,
       "default_chi": 300000
     },
@@ -38,7 +38,7 @@
       "name": "con_lp_token",
       "role": "lp_token_template",
       "path": "src/con_lp_token.py",
-      "sha256": "082f9316173a15ff37a34bc5b7007885dc77242602905707cb2461b60f2083ef",
+      "sha256": "94055195c759edc945783d964123149efd5153dcdce613e7a8399735ee7b4506",
       "deploy_order": 100,
       "default_chi": 160000,
       "deploy_default": false

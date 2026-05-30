@@ -1,18 +1,14 @@
+import {
+  copyToClipboard,
+  shortAddress as sharedShortAddress,
+  toNumber
+} from "@xian-tech/web-kit";
+
 export function shortAddress(addr: string | null | undefined, chars = 6): string {
-  if (!addr) return "—";
-  if (addr.length <= chars * 2 + 2) return addr;
-  return `${addr.slice(0, chars)}…${addr.slice(-chars)}`;
+  return sharedShortAddress(addr, chars, chars);
 }
 
-export function toNumber(value: unknown): number {
-  if (typeof value === "number") return value;
-  if (typeof value === "bigint") return Number(value);
-  if (typeof value === "string") {
-    const n = Number(value);
-    return Number.isFinite(n) ? n : 0;
-  }
-  return 0;
-}
+export { copyToClipboard, toNumber };
 
 const COMPACT = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 2 });
 
@@ -50,13 +46,6 @@ export function formatPercent(value: number, decimals = 2): string {
 
 export function bpsToPercent(bps: number): string {
   return `${(bps / 100).toFixed(bps % 100 === 0 ? 0 : 2)}%`;
-}
-
-export function copyToClipboard(text: string): Promise<void> {
-  if (typeof navigator === "undefined" || !navigator.clipboard) {
-    return Promise.resolve();
-  }
-  return navigator.clipboard.writeText(text);
 }
 
 export function isValidContractName(name: string): boolean {

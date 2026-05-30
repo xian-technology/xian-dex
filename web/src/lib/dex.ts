@@ -365,7 +365,10 @@ export async function estimateChiFor(
       function: fn,
       kwargs
     });
-    return { estimated: result.estimated, suggested: result.suggested };
+    return {
+      estimated: result.estimated,
+      suggested: Math.ceil(result.estimated * 1.1)
+    };
   } catch {
     return null;
   }
