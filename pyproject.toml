@@ -3,7 +3,7 @@ name = "xian-dex"
 version = "0.1.0"
 description = "Xian DEX contracts and SnakX web frontend"
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.14,<3.15"
 dependencies = [
     "xian-tech-accounts>=0.1.0,<1",
     "xian-tech-contracting[zk]>=1.0.1,<2",

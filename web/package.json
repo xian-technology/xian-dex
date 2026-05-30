@@ -11,8 +11,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@xian-tech/client": "^0.1.6",
-    "@xian-tech/provider": "^0.1.6",
+    "@xian-tech/client": "file:../../xian-js/packages/client",
+    "@xian-tech/provider": "file:../../xian-js/packages/provider",
+    "@xian-tech/types": "file:../../xian-js/packages/types",
     "@xian-tech/web-kit": "file:../../xian-js/packages/web-kit",
     "lucide-react": "^1.11.0",
     "react": "^19.2.5",

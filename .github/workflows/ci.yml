@@ -63,13 +63,35 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: web
+        working-directory: xian-dex/web
     steps:
-      - uses: actions/checkout@v6
+      - name: Checkout xian-dex
+        uses: actions/checkout@v6
+        with:
+          path: xian-dex
+
+      - name: Checkout xian-js
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ github.repository_owner }}/xian-js
+          ref: main
+          path: xian-js
+
       - uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: web/package-lock.json
+          cache-dependency-path: |
+            xian-dex/web/package-lock.json
+            xian-js/package-lock.json
+
+      - name: Install xian-js dependencies
+        working-directory: xian-js
+        run: npm ci
+
+      - name: Build xian-js packages
+        working-directory: xian-js
+        run: npm run build
+
       - run: npm ci
       - run: npm run build
