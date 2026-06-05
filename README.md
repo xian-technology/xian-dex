@@ -61,7 +61,7 @@ building:
 
 | Consumer | Use this | Why |
 | --- | --- | --- |
-| Localnet / release harness | `xian-stack` targets such as `make localnet-dex-bootstrap` | exercises the canonical bootstrap path used by stack validation |
+| Localnet / release harness | `scripts/bootstrap_dex.py` delegating to the stack backend | exercises the same local deployment path while keeping the product entrypoint in this repo |
 | Operators / app starters | `xian-cli contract-pack install dex` from `xian-configs` | installs the packaged, reusable DEX contract pack onto a running network |
 | Dapps / custom tooling | `contract-bundle.json` and the canonical contract names | verifies source hashes and knows deployment order / roles |
 
@@ -72,13 +72,14 @@ uv run python scripts/validate_contracts.py
 uv run --project ../xian-cli xian contract bundle validate contract-bundle.json
 ```
 
-Bootstrap DEX contracts into a stack localnet:
+Bootstrap DEX contracts into a stack localnet from the product repo:
 
 ```bash
 cd ../xian-stack
 make localnet-init
 make localnet-up
-make localnet-dex-bootstrap
+cd ../xian-dex
+uv run python scripts/bootstrap_dex.py --recipe core
 ```
 
 Install the packaged DEX contract pack through the operator CLI:
@@ -87,10 +88,10 @@ Install the packaged DEX contract pack through the operator CLI:
 uv run --project ../xian-cli xian contract-pack show dex
 uv run --project ../xian-cli xian contract-pack validate dex
 uv run --project ../xian-cli xian contract-pack install dex \
+  --repo-dir ../xian-dex \
+  --recipe local-demo \
   --rpc-url http://127.0.0.1:26657 \
-  --deployer-private-key "$XIAN_PRIVATE_KEY" \
-  --top-up-liquidity \
-  --emit-test-swap
+  --deployer-private-key "$XIAN_PRIVATE_KEY"
 ```
 
 Read DEX state from Python:
@@ -169,8 +170,8 @@ chain before sending transactions.
   hashes, contract roles, deployment order, and default chi budgets.
 - `tests/` — package-local router and pair integration tests, including
   protocol-fee minting, multi-hop routing, and LP token allowance flows.
-- `scripts/` — `validate_contracts.py` lint, compile, and bundle-hash
-  checker.
+- `scripts/` — `bootstrap_dex.py` product-owned installer wrapper and
+  `validate_contracts.py` lint, compile, and bundle-hash checker.
 - `web/` — SnakX frontend (Vite + React + TypeScript). Talks to the
   canonical contract names (`con_pairs`, `con_dex`, `con_dex_helper`)
   through `@xian-tech/client` for reads and the injected browser wallet
