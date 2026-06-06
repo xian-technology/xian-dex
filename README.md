@@ -15,11 +15,10 @@ here.
 ```mermaid
 flowchart LR
   Source["Contract sources"] --> Bundle["contract-bundle.json"]
-  Bundle --> Configs["xian-configs dex contract pack"]
-  Configs --> CLI["xian-cli contract-pack install dex"]
-  Configs --> Stack["xian-stack localnet bootstrap"]
-  CLI --> Chain["Running Xian network"]
-  Stack --> Chain
+  Bundle --> Bootstrap["scripts/bootstrap_dex.py"]
+  Bundle --> CLI["xian-cli bundle validation"]
+  Bootstrap --> Chain["Running Xian network"]
+  Stack["xian-stack localnet harness"] --> Bootstrap
   Web["SnakX web frontend"] -->|reads through SDK| Chain
   Web -->|writes through wallet provider| Wallet["Browser wallet"]
   Wallet --> Chain
@@ -62,7 +61,7 @@ building:
 | Consumer | Use this | Why |
 | --- | --- | --- |
 | Localnet / release harness | `scripts/bootstrap_dex.py` delegating to the stack backend | exercises the same local deployment path while keeping the product entrypoint in this repo |
-| Operators / app starters | `xian-cli contract-pack install dex` from `xian-configs` | installs the packaged, reusable DEX contract pack onto a running network |
+| Operators / app starters | `scripts/bootstrap_dex.py` from this repo | installs the packaged DEX contracts onto a running network without putting product logic in `xian-cli` |
 | Dapps / custom tooling | `contract-bundle.json` and the canonical contract names | verifies source hashes and knows deployment order / roles |
 
 Validate the bundle from this repo:
@@ -82,16 +81,14 @@ cd ../xian-dex
 uv run python scripts/bootstrap_dex.py --recipe core
 ```
 
-Install the packaged DEX contract pack through the operator CLI:
+For operator automation, validate the repo-owned bundle with `xian-cli` and
+run the repo bootstrap script after the node is healthy:
 
 ```bash
-uv run --project ../xian-cli xian contract-pack show dex
-uv run --project ../xian-cli xian contract-pack validate dex
-uv run --project ../xian-cli xian contract-pack install dex \
-  --repo-dir ../xian-dex \
-  --recipe local-demo \
-  --rpc-url http://127.0.0.1:26657 \
-  --deployer-private-key "$XIAN_PRIVATE_KEY"
+uv run --project ../xian-cli xian contract bundle validate contract-bundle.json
+XIAN_NODE_URL=http://127.0.0.1:26657 \
+XIAN_WALLET_PRIVATE_KEY="$XIAN_PRIVATE_KEY" \
+  uv run python scripts/bootstrap_dex.py --recipe local-demo
 ```
 
 Read DEX state from Python:
