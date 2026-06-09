@@ -84,10 +84,6 @@ export function markRecent(contract: string): void {
   writeRecent(recent.slice(0, RECENT_LIMIT));
 }
 
-export function getRecentTokens(): string[] {
-  return readRecent();
-}
-
 export function forgetToken(contract: string): void {
   writeCustom(readCustom().filter((c) => c !== contract));
   writeRecent(readRecent().filter((c) => c !== contract));
