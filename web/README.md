@@ -56,7 +56,7 @@ npm run dev    # http://localhost:5173
 npm run build  # tsc -b && vite build → dist/
 ```
 
-The default RPC is `https://node.xian.org`. Override it from the Settings
+The default RPC is `http://127.0.0.1:26657`. Override it from the Settings
 modal in the UI (the value is saved per-browser).
 
 ## Layout
