@@ -68,9 +68,20 @@ export async function listAllPairs(): Promise<PairInfo[]> {
   return results.filter((p): p is PairInfo => p != null);
 }
 
-export async function getLpBalance(pairId: number, address: string): Promise<number> {
+// Each pair binds its own LP token contract (con_lp_token template). LP holder
+// balances and approvals live in that token contract, NOT in con_pairs — the
+// pair only records the token's name under pairs[id, "lpToken"].
+export async function getLpTokenName(pairId: number): Promise<string | null> {
   const client = getClient();
-  const v = await client.getState(DEX_PAIRS, "pairs", [String(pairId), "balances", address]);
+  const v = await client.getState(DEX_PAIRS, "pairs", [String(pairId), "lpToken"]);
+  if (v == null || v === 0) return null;
+  return String(v);
+}
+
+export async function getLpBalance(pairId: number, address: string): Promise<number> {
+  const lpToken = await getLpTokenName(pairId);
+  if (!lpToken) return 0;
+  const v = await getClient().getState(lpToken, "balances", [address]);
   return toNumber(v);
 }
 
@@ -79,13 +90,9 @@ export async function getLpAllowance(
   owner: string,
   spender: string
 ): Promise<number> {
-  const client = getClient();
-  const v = await client.getState(DEX_PAIRS, "pairs", [
-    String(pairId),
-    "balances",
-    owner,
-    spender
-  ]);
+  const lpToken = await getLpTokenName(pairId);
+  if (!lpToken) return 0;
+  const v = await getClient().getState(lpToken, "approvals", [owner, spender]);
   return toNumber(v);
 }
 
@@ -461,9 +468,13 @@ export async function approveLp(
   spender: string,
   amount: number
 ): Promise<unknown> {
+  const lpToken = await getLpTokenName(pairId);
+  if (!lpToken) {
+    throw new Error(`No LP token bound to pair ${pairId}`);
+  }
   return sendCall({
-    contract: DEX_PAIRS,
-    function: "liqApprove",
-    kwargs: { pair: pairId, amount, to: spender }
+    contract: lpToken,
+    function: "approve",
+    kwargs: { amount, to: spender }
   });
 }

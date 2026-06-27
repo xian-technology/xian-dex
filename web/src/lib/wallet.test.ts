@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { connect, sendCall } from "./wallet";
-import type { XianProvider } from "@xian-tech/provider";
+import {
+  registerInjectedXianProvider,
+  type XianInjectionTarget,
+  type XianProvider
+} from "@xian-tech/provider";
 
 function installWallet(request: XianProvider["request"]) {
   const provider: XianProvider = {
@@ -9,9 +13,16 @@ function installWallet(request: XianProvider["request"]) {
     on: vi.fn(),
     removeListener: vi.fn()
   };
-  vi.stubGlobal("window", {
-    xian: { provider },
-    xianProviders: []
+  // Install exactly the way a real Xian wallet does (the browser extension calls
+  // registerInjectedXianProvider). Hand-stubbing window.xian.provider with an
+  // empty providers array does not match the EIP-6963-style discovery the
+  // web-kit performs, so the provider would never be found.
+  const target = new EventTarget() as unknown as XianInjectionTarget;
+  vi.stubGlobal("window", target);
+  registerInjectedXianProvider({
+    metadata: { id: "test-wallet", name: "Test Wallet" },
+    provider,
+    target
   });
   return provider;
 }

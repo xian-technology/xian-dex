@@ -16,6 +16,7 @@ import {
   findDirectRoute,
   getLpAllowance,
   getLpBalance,
+  getLpTokenName,
   getPair,
   invalidatePairCache,
   removeLiquidity,
@@ -285,11 +286,12 @@ export default function Liquidity() {
         const id = toasts.push({ kind: "pending", title: "Approving LP tokens…" });
         try {
           const lpApproveAmt = settings.infiniteApproval ? INFINITE_APPROVAL_AMOUNT : lp * 1.05;
+          const lpTokenContract = (await getLpTokenName(pair.id)) ?? DEX_PAIRS;
           const result = (await track(
             {
               label: `Approve LP #${pair.id}${settings.infiniteApproval ? " (∞)" : ""}`,
-              contract: DEX_PAIRS,
-              function: "liqApprove"
+              contract: lpTokenContract,
+              function: "approve"
             },
             () => approveLp(pair.id, DEX_ROUTER, lpApproveAmt) as Promise<SendResult>
           )) as SendResult;

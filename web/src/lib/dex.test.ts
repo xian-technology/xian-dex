@@ -1,15 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const sendCall = vi.hoisted(() => vi.fn(async () => ({ txHash: "DEX123" })));
+const getState = vi.hoisted(() => vi.fn(async () => null as unknown));
 
 vi.mock("./wallet", () => ({ sendCall }));
+vi.mock("./xian", () => ({ getClient: () => ({ getState }) }));
 
-import { DEX_PAIRS, DEX_ROUTER } from "./constants";
+import { DEX_ROUTER } from "./constants";
 import { approveLp, approveToken, deadlineFromNow, swap } from "./dex";
 
 describe("DEX transaction helpers", () => {
   beforeEach(() => {
     sendCall.mockClear();
+    getState.mockReset();
+    getState.mockResolvedValue(null);
   });
 
   it("builds token approval calls", async () => {
@@ -49,13 +53,24 @@ describe("DEX transaction helpers", () => {
     });
   });
 
-  it("builds LP approval calls", async () => {
+  it("approves the router on the pair's bound LP token contract", async () => {
+    // approveLp must resolve the pair's LP token (pairs[id, "lpToken"]) and call
+    // approve on THAT token contract — not a nonexistent con_pairs.liqApprove.
+    getState.mockResolvedValueOnce("con_lp_pair_7");
+
     await approveLp(7, DEX_ROUTER, 100);
 
+    expect(getState).toHaveBeenCalledWith("con_pairs", "pairs", ["7", "lpToken"]);
     expect(sendCall).toHaveBeenCalledWith({
-      contract: DEX_PAIRS,
-      function: "liqApprove",
-      kwargs: { pair: 7, amount: 100, to: DEX_ROUTER }
+      contract: "con_lp_pair_7",
+      function: "approve",
+      kwargs: { amount: 100, to: DEX_ROUTER }
     });
+  });
+
+  it("throws when the pair has no bound LP token", async () => {
+    getState.mockResolvedValueOnce(null);
+    await expect(approveLp(99, DEX_ROUTER, 100)).rejects.toThrow("No LP token");
+    expect(sendCall).not.toHaveBeenCalled();
   });
 });
