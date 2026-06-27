@@ -97,10 +97,15 @@ class TestDexHelper(unittest.TestCase):
             self.alt.approve(amount=5000, to="con_dex_helper", signer=account)
 
         self.submit_lp_token("con_lp_helper_out")
-        self.pair_id = self.pairs.createPair(
+        self.pairs.registerLpToken(
             tokenA="con_plain_out",
             tokenB="currency",
             lpToken="con_lp_helper_out",
+            signer=self.operator,
+        )
+        self.pair_id = self.pairs.createPair(
+            tokenA="con_plain_out",
+            tokenB="currency",
             signer=self.operator,
         )
         self.dex.addLiquidity(
@@ -117,10 +122,15 @@ class TestDexHelper(unittest.TestCase):
         )
 
         self.submit_lp_token("con_lp_helper_alt")
-        self.alt_pair_id = self.pairs.createPair(
+        self.pairs.registerLpToken(
             tokenA="con_plain_alt",
             tokenB="currency",
             lpToken="con_lp_helper_alt",
+            signer=self.operator,
+        )
+        self.alt_pair_id = self.pairs.createPair(
+            tokenA="con_plain_alt",
+            tokenB="currency",
             signer=self.operator,
         )
         self.dex.addLiquidity(

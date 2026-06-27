@@ -107,6 +107,70 @@ def get_vk_info(vk_id: str):
     return None
 """
 
+MALICIOUS_LP_TOKEN = """
+balances = Hash(default_value=0)
+approvals = Hash(default_value=0)
+metadata = Hash()
+
+@construct
+def seed():
+    metadata["token_name"] = "Malicious LP"
+    metadata["token_symbol"] = "MAL-LP"
+    metadata["token_logo_url"] = ""
+    metadata["token_logo_svg"] = ""
+    metadata["token_website"] = ""
+    metadata["precision"] = 8
+    metadata["total_supply"] = 0
+
+@export
+def change_metadata(key: str, value: Any):
+    metadata[key] = value
+
+@export
+def get_metadata():
+    return {
+        "token_name": metadata["token_name"],
+        "token_symbol": metadata["token_symbol"],
+        "token_logo_url": metadata["token_logo_url"],
+        "token_logo_svg": metadata["token_logo_svg"],
+        "token_website": metadata["token_website"],
+        "precision": metadata["precision"],
+        "total_supply": metadata["total_supply"],
+    }
+
+@export
+def balance_of(address: str):
+    if address == "con_pairs":
+        return 100000000
+    return balances[address]
+
+@export
+def transfer(amount: float, to: str):
+    assert amount > 0
+    assert balances[ctx.caller] >= amount
+    balances[ctx.caller] -= amount
+    balances[to] += amount
+
+@export
+def approve(amount: float, to: str):
+    assert amount >= 0
+    approvals[ctx.caller, to] = amount
+
+@export
+def transfer_from(amount: float, to: str, main_account: str):
+    return True
+
+@export
+def mint(amount: float, to: str):
+    assert amount > 0
+    balances[to] += amount
+    metadata["total_supply"] += amount
+
+@export
+def burn(amount: float):
+    return True
+"""
+
 
 class TestDexRouter(unittest.TestCase):
     def setUp(self):
@@ -201,7 +265,15 @@ class TestDexRouter(unittest.TestCase):
                     "minter_address": "con_pairs",
                 },
                 signer=self.operator,
-            )
+        )
+        return self.client.get_contract_proxy(name)
+
+    def submit_malicious_lp_token(self, name="con_lp_malicious"):
+        self.client.submit(
+            MALICIOUS_LP_TOKEN,
+            name=name,
+            signer=self.operator,
+        )
         return self.client.get_contract_proxy(name)
 
     def create_pair(self, tokenA, tokenB, lp_token_name=None):
@@ -209,10 +281,16 @@ class TestDexRouter(unittest.TestCase):
             self.lp_token_count += 1
             lp_token_name = f"con_lp_pair_{self.lp_token_count}"
         lp_token = self.submit_lp_token(name=lp_token_name)
-        pair = self.pairs.createPair(
-            tokenA=tokenA,
-            tokenB=tokenB,
+        token0, token1 = sorted((tokenA, tokenB))
+        self.pairs.registerLpToken(
+            tokenA=token0,
+            tokenB=token1,
             lpToken=lp_token_name,
+            signer=self.operator,
+        )
+        pair = self.pairs.createPair(
+            tokenA=token0,
+            tokenB=token1,
             signer=self.operator,
         )
         return pair, lp_token, lp_token_name
@@ -326,6 +404,12 @@ class TestDexRouter(unittest.TestCase):
             token_name="Auto LP",
             token_symbol="AUTO-LP",
         )
+        self.pairs.registerLpToken(
+            tokenA="currency",
+            tokenB="con_tax_token",
+            lpToken="con_lp_auto",
+            signer=self.operator,
+        )
 
         added = self.dex.addLiquidity(
             tokenA="currency",
@@ -336,7 +420,6 @@ class TestDexRouter(unittest.TestCase):
             amountBMin=900,
             to=self.lp,
             deadline=self.deadline,
-            lpToken="con_lp_auto",
             signer=self.lp,
             environment={"now": self.now},
         )
@@ -355,8 +438,11 @@ class TestDexRouter(unittest.TestCase):
             added[2],
         )
 
-    def test_add_liquidity_requires_lp_token_for_new_pair(self):
-        with self.assertRaises(AssertionError):
+    def test_add_liquidity_requires_registered_lp_token_for_new_pair(self):
+        self.submit_lp_token(name="con_lp_unregistered")
+        with self.assertRaisesRegex(
+            AssertionError, "SNAKX: LP_TOKEN_NOT_REGISTERED"
+        ):
             self.dex.addLiquidity(
                 tokenA="currency",
                 tokenB="con_plain_mid",
@@ -366,9 +452,78 @@ class TestDexRouter(unittest.TestCase):
                 amountBMin=1000,
                 to=self.lp,
                 deadline=self.deadline,
+                lpToken="con_lp_unregistered",
                 signer=self.lp,
                 environment={"now": self.now},
             )
+
+    def test_register_lp_token_is_owner_only(self):
+        self.submit_lp_token(name="con_lp_owner_only")
+
+        with self.assertRaisesRegex(AssertionError, "SNAKX: FORBIDDEN"):
+            self.pairs.registerLpToken(
+                tokenA="currency",
+                tokenB="con_tax_token",
+                lpToken="con_lp_owner_only",
+                signer=self.trader,
+            )
+
+        self.assertIsNone(
+            self.pairs.registeredLpTokenFor(
+                tokenA="currency",
+                tokenB="con_tax_token",
+                signer=self.operator,
+            )
+        )
+
+    def test_create_pair_rejects_unregistered_malicious_lp_token(self):
+        self.submit_malicious_lp_token()
+
+        with self.assertRaisesRegex(
+            AssertionError, "SNAKX: LP_TOKEN_NOT_REGISTERED"
+        ):
+            self.pairs.createPair(
+                tokenA="con_tax_token",
+                tokenB="currency",
+                lpToken="con_lp_malicious",
+                signer=self.trader,
+            )
+
+        self.assertIsNone(
+            self.pairs.pairFor(
+                tokenA="currency",
+                tokenB="con_tax_token",
+                signer=self.operator,
+            )
+        )
+
+    def test_create_pair_rejects_malicious_lp_after_canonical_registration(self):
+        self.submit_lp_token(name="con_lp_canonical")
+        self.submit_malicious_lp_token()
+        self.pairs.registerLpToken(
+            tokenA="currency",
+            tokenB="con_tax_token",
+            lpToken="con_lp_canonical",
+            signer=self.operator,
+        )
+
+        with self.assertRaisesRegex(AssertionError, "SNAKX: LP_TOKEN_MISMATCH"):
+            self.pairs.createPair(
+                tokenA="con_tax_token",
+                tokenB="currency",
+                lpToken="con_lp_malicious",
+                signer=self.trader,
+            )
+
+        pair_id = self.pairs.createPair(
+            tokenA="con_tax_token",
+            tokenB="currency",
+            signer=self.trader,
+        )
+        self.assertEqual(
+            self.pairs.lpTokenFor(pair=pair_id, signer=self.operator),
+            "con_lp_canonical",
+        )
 
     def test_standard_lp_transfer_and_remove_liquidity_use_token_allowance(
         self,

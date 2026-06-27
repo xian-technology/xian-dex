@@ -10,6 +10,15 @@ PairCreated = LogEvent(
 	"pair":   {'type':int}
 	}
 )
+
+LpTokenRegistered = LogEvent(
+    "LpTokenRegistered",
+    {
+	"token0":  {'type':str, 'idx':True},
+	"token1":  {'type':str, 'idx':True},
+	"lpToken": {'type':str}
+	}
+)
 	
 Mint = LogEvent(
     "Mint",
@@ -54,6 +63,8 @@ Sync = LogEvent(
 
 toks_to_pair = Hash(default_value=None)
 pairs = Hash(default_value=0)
+registered_lp_tokens = Hash(default_value=None)
+registered_lp_token_pairs = Hash(default_value=None)
 pairs_num = Variable()
 feeTo = Variable()
 owner = Variable()
@@ -113,6 +124,19 @@ def pair_exists(pair: int):
 	return token0 is not None and token0 != 0
 
 
+def assert_pair_tokens(tokenA: str, tokenB: str):
+	assert tokenA != tokenB, 'SNAKX: IDENTICAL_ADDRESSES'
+	assert tokenA < tokenB, 'SNAKX: BAD_ORDER'
+	assert_token_contract(tokenA)
+	assert_token_contract(tokenB)
+
+
+def registered_lp_token_for_ordered_pair(tokenA: str, tokenB: str):
+	lp_token = registered_lp_tokens[tokenA, tokenB]
+	assert lp_token is not None and lp_token != 0, "SNAKX: LP_TOKEN_NOT_REGISTERED"
+	return lp_token
+
+
 def lp_balance_of(pair: int, address: str):
 	balance = load_lp_token_for(pair).balance_of(address)
 	return 0 if balance is None else balance
@@ -165,21 +189,41 @@ def enableFee(en: bool):
 		feeTo.set(owner.get())
 	else:
 		feeTo.set(False)
+
+
+@export
+def registerLpToken(tokenA: str, tokenB: str, lpToken: str):
+	assert ctx.caller == owner.get(), "SNAKX: FORBIDDEN"
+	if(tokenB < tokenA):
+		tokenA, tokenB = tokenB, tokenA
+	assert_pair_tokens(tokenA, tokenB)
+	assert toks_to_pair[tokenA,tokenB] == None, 'SNAKX: PAIR_EXISTS'
+	assert registered_lp_tokens[tokenA, tokenB] == None, "SNAKX: LP_TOKEN_ALREADY_REGISTERED"
+	assert registered_lp_token_pairs[lpToken] == None, "SNAKX: LP_TOKEN_ALREADY_REGISTERED"
+	assert lpToken != tokenA and lpToken != tokenB, "SNAKX: INVALID_LP_TOKEN"
+	assert_lp_token_contract(lpToken)
+	registered_lp_tokens[tokenA, tokenB] = lpToken
+	registered_lp_token_pairs[lpToken] = True
+	LpTokenRegistered({"token0": tokenA, "token1": tokenB, "lpToken": lpToken})
+	return lpToken
+
+
+@export
+def registeredLpTokenFor(tokenA: str, tokenB: str):
+	if(tokenB < tokenA):
+		tokenA, tokenB = tokenB, tokenA
+	return registered_lp_tokens[tokenA, tokenB]
 	
 #factory
 @export
-def createPair(tokenA: str, tokenB: str, lpToken: str):
-	assert tokenA != tokenB, 'SNAKX: IDENTICAL_ADDRESSES'
-	assert tokenA < tokenB, 'SNAKX: BAD_ORDER'
+def createPair(tokenA: str, tokenB: str, lpToken: str = None):
+	assert_pair_tokens(tokenA, tokenB)
 	assert toks_to_pair[tokenA,tokenB] == None, 'SNAKX: PAIR_EXISTS'
-	
-	
-	
-	assert_token_contract(tokenA)
-	
-	assert_token_contract(tokenB)
 
-	assert lpToken != tokenA and lpToken != tokenB, "SNAKX: INVALID_LP_TOKEN"
+	registered_lp_token = registered_lp_token_for_ordered_pair(tokenA, tokenB)
+	if lpToken is not None:
+		assert lpToken == registered_lp_token, "SNAKX: LP_TOKEN_MISMATCH"
+	lpToken = registered_lp_token
 	assert_lp_token_contract(lpToken)
 	
 	

@@ -182,7 +182,6 @@ lpToken: str = None):
 	
 	desired_pair = toks_to_pair[tokenA, tokenB]
 	if (desired_pair == None):
-		assert lpToken is not None, "SNAKX: LP_TOKEN_REQUIRED"
 		desired_pair = pairs.createPair(tokenA, tokenB, lpToken)
 	elif lpToken is not None:
 		assert pairs.lpTokenFor(desired_pair) == lpToken, "SNAKX: LP_TOKEN_MISMATCH"

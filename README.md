@@ -27,9 +27,9 @@ flowchart LR
 
 ## Status
 
-`candidate`. Contracts are usable and covered by package-local tests, but
-still deserve deeper hardening before being treated as a polished
-production drop-in.
+`candidate`. Contracts are usable and covered by package-local tests, with
+deeper hardening required before they are treated as a polished production
+drop-in.
 
 ## Quick Start
 
@@ -131,10 +131,10 @@ const quote = await client.contract("con_dex").call("getAmountsOut", {
 console.log(pair, quote);
 ```
 
-The frontend defaults to the public node RPC and lets users change the RPC
-from the Settings modal. For local testing, point it at the same local node
-used for bootstrap and make sure the browser wallet is connected to that
-chain before sending transactions.
+The frontend uses the configured node RPC and lets users change the RPC from the
+Settings modal. For local testing, point it at the same local node used for
+bootstrap and make sure the browser wallet is connected to that chain before
+sending transactions.
 
 ## Principles
 
@@ -179,11 +179,13 @@ chain before sending transactions.
 
 - Router liquidity paths return and enforce actual received amounts, which
   matters for fee-on-transfer tokens.
-- Every pair has a bound XSC001 LP token contract. Create pairs with
-  `createPair(tokenA, tokenB, lpToken=...)`, or pass `lpToken=...` to
-  `addLiquidity` when the router needs to auto-create the pair. The pair
-  contract mints/burns that LP token directly; users transfer it with
-  `transfer` and approve removals with `approve(amount, to="con_dex")`.
+- Every pair has a bound XSC001 LP token contract. The factory owner registers
+  the canonical LP token with `registerLpToken(tokenA, tokenB, lpToken)` before
+  the pair exists. `createPair(tokenA, tokenB)` and router auto-creation during
+  `addLiquidity` use the registered token; an optional `lpToken` argument is
+  accepted only when it matches that registration. The pair contract
+  mints/burns that LP token directly; users transfer it with `transfer` and
+  approve removals with `approve(amount, to="con_dex")`.
 - Fee-on-transfer token flags are router-owner controlled.
 - Zero-fee signer accounts can be enabled with
   `set_zero_fee_trader(...)` for market makers or other approved flow.
@@ -194,9 +196,9 @@ chain before sending transactions.
 - Tokens that expose `get_metadata().precision` route through the DEX with
   precision-aware amount normalization, including integer-precision public
   balances such as `shielded-note-token`.
-- `con_dex_helper.py` requires an explicit absolute `deadline` (the older
-  relative `deadline_min` pattern was not a real pre-inclusion expiry
-  guard, because it was computed from on-chain `now` at execution time).
+- `con_dex_helper.py` requires an explicit absolute `deadline`; relative
+  minute-based guards cannot provide pre-inclusion expiry because they are
+  computed from on-chain `now` at execution time.
 - Helper quoting is fee-tier aware, so zero-fee market-maker signers do not
   overpay when using the helper path.
 
