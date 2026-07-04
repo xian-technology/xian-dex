@@ -125,7 +125,8 @@ export default function Pools() {
     list.sort((a, b) => {
       switch (sortKey) {
         case "id":
-          return a.pair.id - b.pair.id;
+          // Higher id = created later; "Newest" must sort descending.
+          return b.pair.id - a.pair.id;
         case "name":
           return (a.token0.symbol + a.token1.symbol).localeCompare(
             b.token0.symbol + b.token1.symbol
@@ -156,6 +157,7 @@ export default function Pools() {
         <div className="modal-search">
           <Search size={14} />
           <input
+            aria-label="Search pools"
             placeholder="Search pools by symbol, name, or contract"
             value={search}
             onChange={(e) => setSearch(e.target.value)}

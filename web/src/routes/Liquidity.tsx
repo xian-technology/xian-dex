@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ChevronDown, Plus, Minus, Info, Settings as SettingsIcon } from "lucide-react";
 import { TokenIcon } from "../components/TokenIcon";
+import { ConnectButton } from "../components/ConnectButton";
 import { TokenSelectorModal } from "../components/TokenSelectorModal";
 import { SettingsModal } from "../components/SettingsModal";
 import { useWallet } from "../hooks/useWallet";
@@ -24,7 +25,7 @@ import {
 } from "../lib/dex";
 import { getAllowance, getBalance, getTokenInfo, type TokenInfo } from "../lib/tokens";
 import { DEX_PAIRS, DEX_ROUTER, INFINITE_APPROVAL_AMOUNT, NATIVE_TOKEN } from "../lib/constants";
-import { formatNumber } from "../lib/format";
+import { formatNumber, toDecimalInput } from "../lib/format";
 import { track } from "../lib/txHistory";
 
 type SendResult = {
@@ -151,9 +152,15 @@ export default function Liquidity() {
     };
   }, [wallet.account, tokenA, tokenB, pair, reload, rpcEpoch]);
 
-  // auto-derive amountB when adding to existing pair
+  // A pair can exist with zero reserves (created, then fully drained). It
+  // must then behave like a brand-new pool: amount B stays editable and the
+  // depositor sets the initial price.
+  const poolSeeded = !!pair && pair.reserve0 > 0 && pair.reserve1 > 0;
+
+  // auto-derive amountB when adding to a seeded pair
   useEffect(() => {
     if (mode !== "add" || !pair || !tokenA || !tokenB) return;
+    if (pair.reserve0 <= 0 || pair.reserve1 <= 0) return;
     const a = Number(amountA);
     if (!Number.isFinite(a) || a <= 0) {
       setAmountB("");
@@ -162,9 +169,9 @@ export default function Liquidity() {
     const orderForward = pair.token0 === tokenA.contract;
     const reserveA = orderForward ? pair.reserve0 : pair.reserve1;
     const reserveB = orderForward ? pair.reserve1 : pair.reserve0;
-    if (reserveA <= 0 || reserveB <= 0) return;
     const optimal = (a * reserveB) / reserveA;
-    setAmountB(formatNumber(optimal));
+    // Must stay Number()-parseable — formatNumber's grouping ("1,234.5") is not.
+    setAmountB(toDecimalInput(optimal));
   }, [amountA, pair, tokenA, tokenB, mode]);
 
   const minAmounts = useMemo(() => {
@@ -394,7 +401,7 @@ export default function Liquidity() {
                 {wallet.account && tokenA && (
                   <span className="muted small">
                     Balance: <strong>{formatNumber(balanceA)}</strong>{" "}
-                    <button className="link" onClick={() => setAmountA(String(balanceA))}>Max</button>
+                    <button className="link" onClick={() => setAmountA(toDecimalInput(balanceA))}>Max</button>
                   </span>
                 )}
               </div>
@@ -404,6 +411,7 @@ export default function Liquidity() {
                   type="text"
                   inputMode="decimal"
                   placeholder="0.0"
+                  aria-label="Token A amount"
                   value={amountA}
                   onChange={(e) => setAmountA(e.target.value.replace(/[^\d.]/g, ""))}
                 />
@@ -414,7 +422,10 @@ export default function Liquidity() {
                       <span>{tokenA.symbol}</span>
                     </>
                   ) : (
-                    <span>Select</span>
+                    <>
+                      <TokenIcon token={null} size={24} />
+                      <span>Select</span>
+                    </>
                   )}
                   <ChevronDown size={14} />
                 </button>
@@ -438,8 +449,9 @@ export default function Liquidity() {
                   type="text"
                   inputMode="decimal"
                   placeholder="0.0"
+                  aria-label="Token B amount"
                   value={amountB}
-                  readOnly={!!pair}
+                  readOnly={poolSeeded}
                   onChange={(e) => setAmountB(e.target.value.replace(/[^\d.]/g, ""))}
                 />
                 <button className="token-pick" onClick={() => setPickB(true)}>
@@ -449,14 +461,17 @@ export default function Liquidity() {
                       <span>{tokenB.symbol}</span>
                     </>
                   ) : (
-                    <span>Select</span>
+                    <>
+                      <TokenIcon token={null} size={24} />
+                      <span>Select</span>
+                    </>
                   )}
                   <ChevronDown size={14} />
                 </button>
               </div>
             </div>
 
-            {tokenA && tokenB && !pair && (() => {
+            {tokenA && tokenB && !poolSeeded && (() => {
               const a = Number(amountA);
               const b = Number(amountB);
               const havePrice = a > 0 && b > 0;
@@ -495,7 +510,7 @@ export default function Liquidity() {
                 </div>
               );
             })()}
-            {pair && tokenA && tokenB && (
+            {poolSeeded && pair && tokenA && tokenB && (
               <div className="quote-summary">
                 <div className="quote-row">
                   <span className="muted">Pool reserves</span>
@@ -522,19 +537,7 @@ export default function Liquidity() {
             )}
 
             {!wallet.account ? (
-              <button
-                className="btn btn-primary btn-block"
-                onClick={() => wallet.connect()}
-                disabled={!wallet.available || wallet.connecting}
-              >
-                {!wallet.available
-                  ? "Wallet missing"
-                  : wallet.connecting
-                    ? "Connecting…"
-                    : wallet.info?.locked
-                      ? "Unlock Wallet"
-                      : "Connect Wallet"}
-              </button>
+              <ConnectButton block />
             ) : !tokenA || !tokenB ? (
               <button className="btn btn-primary btn-block" disabled>
                 Select two tokens
@@ -557,7 +560,7 @@ export default function Liquidity() {
               </button>
             ) : (
               <button className="btn btn-primary btn-block" onClick={handleAdd} disabled={busy}>
-                {busy ? "Submitting…" : pair ? "Add Liquidity" : "Create Pool & Add"}
+                {busy ? "Submitting…" : poolSeeded ? "Add Liquidity" : "Create Pool & Add"}
               </button>
             )}
           </>
@@ -570,7 +573,7 @@ export default function Liquidity() {
                   <span className="muted small">
                     Balance: <strong>{formatNumber(lpBalance)}</strong>{" "}
                     {lpBalance > 0 && (
-                      <button className="link" onClick={() => setRemoveAmount(String(lpBalance))}>
+                      <button className="link" onClick={() => setRemoveAmount(toDecimalInput(lpBalance))}>
                         Max
                       </button>
                     )}
@@ -583,19 +586,23 @@ export default function Liquidity() {
                   type="text"
                   inputMode="decimal"
                   placeholder="0.0"
+                  aria-label="LP tokens to remove"
                   value={removeAmount}
                   onChange={(e) => setRemoveAmount(e.target.value.replace(/[^\d.]/g, ""))}
                 />
                 <button className="token-pick" onClick={() => setPickA(true)}>
                   {tokenA ? (
                     <>
-                      <TokenIcon token={tokenA} size={20} />
+                      <TokenIcon token={tokenA} size={24} />
                       <span>/</span>
-                      {tokenB && <TokenIcon token={tokenB} size={20} />}
+                      {tokenB && <TokenIcon token={tokenB} size={24} />}
                       <span>LP</span>
                     </>
                   ) : (
-                    <span>Select pair</span>
+                    <>
+                      <TokenIcon token={null} size={24} />
+                      <span>Select pair</span>
+                    </>
                   )}
                   <ChevronDown size={14} />
                 </button>
@@ -606,7 +613,7 @@ export default function Liquidity() {
                     <button
                       key={p}
                       className="chip"
-                      onClick={() => setRemoveAmount(String((lpBalance * p) / 100))}
+                      onClick={() => setRemoveAmount(toDecimalInput((lpBalance * p) / 100))}
                     >
                       {p}%
                     </button>
@@ -649,19 +656,7 @@ export default function Liquidity() {
             )}
 
             {!wallet.account ? (
-              <button
-                className="btn btn-primary btn-block"
-                onClick={() => wallet.connect()}
-                disabled={!wallet.available || wallet.connecting}
-              >
-                {!wallet.available
-                  ? "Wallet missing"
-                  : wallet.connecting
-                    ? "Connecting…"
-                    : wallet.info?.locked
-                      ? "Unlock Wallet"
-                      : "Connect Wallet"}
-              </button>
+              <ConnectButton block />
             ) : !pair ? (
               <Link to="/portfolio" className="btn btn-ghost btn-block">
                 Pick a position from your portfolio

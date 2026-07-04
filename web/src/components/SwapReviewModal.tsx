@@ -4,6 +4,7 @@ import { TokenIcon } from "./TokenIcon";
 import { estimateChiFor, type ChiEstimate, type QuoteResult } from "../lib/dex";
 import type { TokenInfo } from "../lib/tokens";
 import { bpsToPercent, formatNumber } from "../lib/format";
+import { useModalBehavior } from "../hooks/useModalBehavior";
 
 interface Props {
   open: boolean;
@@ -43,6 +44,8 @@ export function SwapReviewModal({
 }: Props) {
   const [chi, setChi] = useState<ChiEstimate | null>(null);
   const [chiLoading, setChiLoading] = useState(false);
+  // While submitting, closing must go through the (disabled) Cancel button.
+  useModalBehavior(open && !busy, onClose);
 
   useEffect(() => {
     if (!open || !estimateRequest || !account) {
@@ -72,7 +75,13 @@ export function SwapReviewModal({
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Review swap"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="modal-header">
           <h3>Review swap</h3>
           <button className="icon-btn" aria-label="Close" onClick={onClose}>

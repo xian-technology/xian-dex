@@ -11,6 +11,8 @@ import {
   type TokenInfo
 } from "../lib/tokens";
 import { isValidContractName, formatNumber } from "../lib/format";
+import { registryContracts } from "../lib/tokenRegistry";
+import { useModalBehavior } from "../hooks/useModalBehavior";
 
 interface Props {
   open: boolean;
@@ -31,6 +33,7 @@ export function TokenSelectorModal({ open, onClose, onSelect, exclude, account }
   const [loading, setLoading] = useState(false);
   const [importBusy, setImportBusy] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
+  useModalBehavior(open, onClose);
 
   useEffect(() => {
     if (!open) return;
@@ -110,7 +113,13 @@ export function TokenSelectorModal({ open, onClose, onSelect, exclude, account }
   if (!open) return null;
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Select a token"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="modal-header">
           <h3>Select a token</h3>
           <button className="icon-btn" aria-label="Close" onClick={onClose}>
@@ -121,6 +130,7 @@ export function TokenSelectorModal({ open, onClose, onSelect, exclude, account }
           <Search size={16} />
           <input
             autoFocus
+            aria-label="Search tokens"
             placeholder="Search name, symbol, or paste contract"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -151,7 +161,7 @@ export function TokenSelectorModal({ open, onClose, onSelect, exclude, account }
               </div>
               <div className="token-balance">
                 <div>{formatNumber(balance)}</div>
-                {info.contract !== "currency" && (
+                {!registryContracts().includes(info.contract) && (
                   <button
                     className="icon-btn ghost"
                     title="Forget custom token"

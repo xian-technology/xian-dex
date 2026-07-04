@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { RefreshCw, Wallet } from "lucide-react";
+import { ConnectButton } from "../components/ConnectButton";
 import { TokenIcon } from "../components/TokenIcon";
 import { useWallet } from "../hooks/useWallet";
 import { useRpcEpoch } from "../hooks/useRpcEpoch";
@@ -29,7 +30,9 @@ export default function Portfolio() {
   const rpcEpoch = useRpcEpoch();
   const [tokens, setTokens] = useState<TokenRow[]>([]);
   const [positions, setPositions] = useState<PositionRow[]>([]);
-  const [loading, setLoading] = useState(false);
+  // Start in "loading" so the first authenticated paint doesn't flash the
+  // "no tokens" empty state before the fetch effect kicks in.
+  const [loading, setLoading] = useState(true);
   const [reload, setReload] = useState(0);
   const [copied, setCopied] = useState(false);
 
@@ -69,25 +72,38 @@ export default function Portfolio() {
 
       try {
         const pairs = await listAllPairs();
-        const positionRows: PositionRow[] = [];
-        for (const pair of pairs) {
-          const lp = await getLpBalance(pair.id, wallet.account!);
-          if (lp <= 0) continue;
-          const [t0, t1] = await Promise.all([
-            getTokenInfo(pair.token0),
-            getTokenInfo(pair.token1)
-          ]);
-          const share = pair.totalSupply > 0 ? lp / pair.totalSupply : 0;
-          positionRows.push({
-            pair,
-            token0: t0,
-            token1: t1,
-            lp,
-            share,
-            amount0: share * pair.reserve0,
-            amount1: share * pair.reserve1
-          });
-        }
+        // Balance lookups are independent — fetch them in parallel, and don't
+        // let one failing pair wipe the whole positions list.
+        const lps = await Promise.all(
+          pairs.map((pair) => getLpBalance(pair.id, wallet.account!).catch(() => 0))
+        );
+        const held = pairs
+          .map((pair, i) => ({ pair, lp: lps[i] }))
+          .filter((x) => x.lp > 0);
+        const positionRows = (
+          await Promise.all(
+            held.map(async ({ pair, lp }): Promise<PositionRow | null> => {
+              try {
+                const [t0, t1] = await Promise.all([
+                  getTokenInfo(pair.token0),
+                  getTokenInfo(pair.token1)
+                ]);
+                const share = pair.totalSupply > 0 ? lp / pair.totalSupply : 0;
+                return {
+                  pair,
+                  token0: t0,
+                  token1: t1,
+                  lp,
+                  share,
+                  amount0: share * pair.reserve0,
+                  amount1: share * pair.reserve1
+                };
+              } catch {
+                return null;
+              }
+            })
+          )
+        ).filter((row): row is PositionRow => row != null);
         if (cancel) return;
         positionRows.sort((a, b) => b.share - a.share);
         setPositions(positionRows);
@@ -108,15 +124,9 @@ export default function Portfolio() {
         <div className="empty">
           <Wallet size={28} className="muted" />
           <div style={{ marginTop: 10 }}>Connect a wallet to view your portfolio.</div>
-          {wallet.available && (
-            <button
-              className="btn btn-primary"
-              onClick={() => wallet.connect()}
-              style={{ marginTop: 14 }}
-            >
-              Connect Wallet
-            </button>
-          )}
+          <div style={{ marginTop: 14 }}>
+            <ConnectButton />
+          </div>
         </div>
       </div>
     );

@@ -31,7 +31,11 @@
   --r-lg: 18px;
   --r-xl: 24px;
   --font-sans: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, "JetBrains Mono", "Fira Code", monospace;
+  /* Every OS must hit a real font before the generic keyword: Chrome ignores
+     ui-monospace and its bare `monospace` default is Courier. No user-installed
+     coding fonts (JetBrains Mono, Fira Code) — ligatures don't belong in a UI. */
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas,
+    "Liberation Mono", "Courier New", monospace;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -433,6 +437,15 @@ input[type="number"]:focus-visible {
 .quote-row .muted { color: var(--muted); }
 .quote-row.warning { color: var(--warning); }
 
+/* Icon-led footnote inside a quote summary (icon stays next to the text,
+   unlike .quote-row which pushes its children to opposite edges). */
+.quote-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.quote-note svg { flex-shrink: 0; }
+
 .route-display {
   display: inline-flex;
   align-items: center;
@@ -463,6 +476,8 @@ input[type="number"]:focus-visible {
 .info-row.error { background: var(--danger-soft); color: var(--danger); }
 .info-row.danger { background: var(--danger-soft); color: var(--danger); }
 .info-row.warning { background: var(--warning-soft); color: var(--warning); }
+/* Inside a quote summary the container's gap already spaces rows. */
+.quote-summary .info-row { margin-top: 0; }
 
 /* ── Tabs ───────────────────────────────────────────────────── */
 
@@ -560,7 +575,13 @@ button.badge:hover { filter: brightness(1.15); }
   gap: 8px;
 }
 .token-symbol { font-weight: 700; font-size: 14px; }
-.token-name { color: var(--muted); font-size: 12px; truncate: ellipsis; }
+.token-name {
+  color: var(--muted);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .token-contract {
   color: var(--muted);
   font-size: 11px;
@@ -1091,9 +1112,9 @@ button.badge:hover { filter: brightness(1.15); }
 .toast-pending { border-left: 3px solid var(--accent); }
 .toast-info { border-left: 3px solid var(--muted); }
 .toast-icon { flex-shrink: 0; margin-top: 1px; }
-.toast-success.toast-icon, .toast-icon.toast-success { color: var(--success); }
-.toast-error.toast-icon, .toast-icon.toast-error { color: var(--danger); }
-.toast-pending.toast-icon, .toast-icon.toast-pending { color: var(--accent); }
+.toast-icon.toast-success { color: var(--success); }
+.toast-icon.toast-error { color: var(--danger); }
+.toast-icon.toast-pending { color: var(--accent); }
 .toast-body { flex: 1; min-width: 0; }
 .toast-title { font-size: 14px; font-weight: 600; }
 .toast-message { font-size: 12px; color: var(--muted); margin-top: 4px; line-height: 1.4; word-break: break-word; }

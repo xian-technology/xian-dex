@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ArrowDownUp, ChevronDown, RefreshCw, Settings as SettingsIcon, Info, Share2 } from "lucide-react";
 import { TokenIcon } from "../components/TokenIcon";
+import { ConnectButton } from "../components/ConnectButton";
 import { TokenSelectorModal } from "../components/TokenSelectorModal";
 import { SettingsModal } from "../components/SettingsModal";
 import { SwapReviewModal } from "../components/SwapReviewModal";
@@ -21,7 +22,14 @@ import {
 } from "../lib/dex";
 import { getTokenInfo, getAllowance, getBalance, type TokenInfo } from "../lib/tokens";
 import { DEX_ROUTER, INFINITE_APPROVAL_AMOUNT, NATIVE_TOKEN } from "../lib/constants";
-import { bpsToPercent, copyToClipboard, formatNumber, formatPercent, isValidContractName } from "../lib/format";
+import {
+  bpsToPercent,
+  copyToClipboard,
+  formatNumber,
+  formatPercent,
+  isValidContractName,
+  toDecimalInput
+} from "../lib/format";
 import { track } from "../lib/txHistory";
 
 interface PanelProps {
@@ -44,7 +52,7 @@ function Panel({ label, token, amount, onAmount, onPickToken, balance, readOnly,
           <span className="muted small">
             Balance: <strong>{formatNumber(balance)}</strong>{" "}
             {!readOnly && balance > 0 && (
-              <button className="link" onClick={() => onAmount?.(String(balance))}>
+              <button className="link" onClick={() => onAmount?.(toDecimalInput(balance))}>
                 Max
               </button>
             )}
@@ -57,6 +65,7 @@ function Panel({ label, token, amount, onAmount, onPickToken, balance, readOnly,
           type="text"
           inputMode="decimal"
           placeholder="0.0"
+          aria-label={`${label} amount`}
           value={amount}
           readOnly={readOnly}
           onChange={(e) => onAmount?.(e.target.value.replace(/[^\d.]/g, ""))}
@@ -68,7 +77,10 @@ function Panel({ label, token, amount, onAmount, onPickToken, balance, readOnly,
               <span>{token.symbol}</span>
             </>
           ) : (
-            <span>Select</span>
+            <>
+              <TokenIcon token={null} size={24} />
+              <span>Select</span>
+            </>
           )}
           <ChevronDown size={14} />
         </button>
@@ -116,7 +128,9 @@ export default function Swap() {
       const xian = await getTokenInfo(seed).catch(() => null);
       if (cancel) return;
       if (!fromToken && xian) setFromToken(xian);
-      if (to && isValidContractName(to) && from !== to) {
+      // Compare against the resolved seed, not the raw param — with no valid
+      // "from", both sides would otherwise end up on the native token.
+      if (to && isValidContractName(to) && to !== seed) {
         const target = await getTokenInfo(to).catch(() => null);
         if (cancel) return;
         if (target && !toToken) setToToken(target);
@@ -184,6 +198,9 @@ export default function Swap() {
     let cancel = false;
     setQuote(null);
     setQuoteError(null);
+    // A cancelled in-flight quote skips its `finally`, so reset the flag here
+    // or "Quoting…" sticks after the amount is cleared mid-fetch.
+    setQuoting(false);
     const inAmount = Number(amountIn);
     if (!fromToken || !toToken || !Number.isFinite(inAmount) || inAmount <= 0) return;
     if (fromToken.contract === toToken.contract) {
@@ -265,7 +282,7 @@ export default function Swap() {
   }
 
   const insufficient = quote && balanceFrom < quote.amountIn;
-  const needsApproval = !!fromToken && !!quote && allowance < quote.amountIn && fromToken.contract !== "currency_native_unused";
+  const needsApproval = !!fromToken && !!quote && allowance < quote.amountIn;
   const priceImpactPct = quote ? quote.priceImpact * 100 : 0;
   const priceImpactClass =
     priceImpactPct >= 5 ? "danger" : priceImpactPct >= 1.5 ? "warning" : "muted";
@@ -435,7 +452,7 @@ export default function Swap() {
         <Panel
           label="To"
           token={toToken}
-          amount={quote ? formatNumber(quote.amountOut) : ""}
+          amount={quote ? toDecimalInput(quote.amountOut, 6) : ""}
           onPickToken={() => setPickTo(true)}
           balance={wallet.account ? balanceTo : undefined}
           account={wallet.account}
@@ -489,12 +506,12 @@ export default function Swap() {
               </span>
             </div>
             {isMultiHop && (
-              <div className="quote-row muted small">
+              <div className="quote-note muted small">
                 <Info size={11} /> {quote.hops.length} hops · best route auto-selected
               </div>
             )}
             {useSupporting && (
-              <div className="quote-row warning small">
+              <div className="quote-note warning small">
                 <Info size={12} /> Using fee-on-transfer path
                 {destFot && !feeOnTransferIn ? " (output token)" : ""}.
               </div>
@@ -514,19 +531,7 @@ export default function Swap() {
         )}
 
         {!wallet.account ? (
-          <button
-            className="btn btn-primary btn-block"
-            onClick={() => wallet.connect()}
-            disabled={!wallet.available || wallet.connecting}
-          >
-            {!wallet.available
-              ? "Wallet missing"
-              : wallet.connecting
-                ? "Connecting…"
-                : wallet.info?.locked
-                  ? "Unlock Wallet"
-                  : "Connect Wallet"}
-          </button>
+          <ConnectButton block />
         ) : !fromToken || !toToken ? (
           <button className="btn btn-primary btn-block" disabled>
             Select tokens
@@ -545,7 +550,7 @@ export default function Swap() {
           </button>
         ) : needsApproval ? (
           <button className="btn btn-primary btn-block" onClick={handleApprove} disabled={busy}>
-            {busy ? "Working…" : `Approve ${fromToken.symbol}`}
+            {busy ? "Approving…" : `Approve ${fromToken.symbol}`}
           </button>
         ) : (
           <button

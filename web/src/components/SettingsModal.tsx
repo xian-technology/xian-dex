@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Settings as SettingsIcon, X, Check } from "lucide-react";
 import { getRpcUrl, pingRpc, setRpcUrl } from "../lib/xian";
 import { useSettings } from "../hooks/useSettings";
+import { useModalBehavior } from "../hooks/useModalBehavior";
 
 interface Props {
   open: boolean;
@@ -16,6 +17,7 @@ export function SettingsModal({ open, onClose, onChange }: Props) {
   const [dlInput, setDlInput] = useState(settings.deadlineMin.toString());
   const [pinging, setPinging] = useState(false);
   const [pingResult, setPingResult] = useState<null | "ok" | "fail">(null);
+  useModalBehavior(open, onClose);
 
   useEffect(() => {
     if (open) {
@@ -53,7 +55,13 @@ export function SettingsModal({ open, onClose, onChange }: Props) {
   if (!open) return null;
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Settings"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="modal-header">
           <h3>
             <SettingsIcon size={16} /> Settings
@@ -84,6 +92,7 @@ export function SettingsModal({ open, onClose, onChange }: Props) {
                   step="0.1"
                   min="0"
                   max="50"
+                  aria-label="Custom slippage percent"
                   value={slipInput}
                   onChange={(e) => applySlippage(e.target.value)}
                 />
@@ -121,6 +130,7 @@ export function SettingsModal({ open, onClose, onChange }: Props) {
                   type="number"
                   min="1"
                   max="180"
+                  aria-label="Transaction deadline in minutes"
                   value={dlInput}
                   onChange={(e) => applyDeadline(e.target.value)}
                 />
@@ -134,6 +144,7 @@ export function SettingsModal({ open, onClose, onChange }: Props) {
             <div className="setting-row">
               <input
                 type="text"
+                aria-label="RPC node URL"
                 value={rpc}
                 onChange={(e) => setRpc(e.target.value)}
                 spellCheck={false}

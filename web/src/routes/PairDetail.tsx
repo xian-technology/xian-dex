@@ -261,7 +261,12 @@ export default function PairDetail() {
         <div className="card">
           <div className="card-header"><h3>Tokens</h3></div>
           {[token0, token1].map((t) => (
-            <div key={t.contract} className="token-row" onClick={() => copy(t.contract)}>
+            <div
+              key={t.contract}
+              className="token-row"
+              title="Copy contract address"
+              onClick={() => copy(t.contract)}
+            >
               <TokenIcon token={t} size={32} />
               <div className="token-row-text">
                 <div className="token-row-top">

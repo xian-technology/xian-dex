@@ -30,8 +30,12 @@ const DEFAULT_SETTINGS: Settings = {
 function read(): Settings {
   if (typeof localStorage === "undefined") return DEFAULT_SETTINGS;
   try {
-    const slip = Number(localStorage.getItem(STORAGE_KEYS.slippage));
-    const dl = Number(localStorage.getItem(STORAGE_KEYS.deadlineMin));
+    // Missing keys must fall through to defaults: Number(null) is 0, which
+    // would otherwise pass the ">= 0" check and set slippage to 0%.
+    const slipRaw = localStorage.getItem(STORAGE_KEYS.slippage);
+    const dlRaw = localStorage.getItem(STORAGE_KEYS.deadlineMin);
+    const slip = slipRaw == null || slipRaw === "" ? NaN : Number(slipRaw);
+    const dl = dlRaw == null || dlRaw === "" ? NaN : Number(dlRaw);
     const infRaw = localStorage.getItem(STORAGE_KEYS.infiniteApproval);
     return {
       slippageBps: Number.isFinite(slip) && slip >= 0 ? slip : DEFAULT_SETTINGS.slippageBps,
@@ -60,7 +64,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setDeadlineMin = useCallback((m: number) => {
-    setSettings((s) => ({ ...s, deadlineMin: Math.max(1, Math.round(m)) }));
+    // Matches the 1–180 range the settings input advertises.
+    setSettings((s) => ({ ...s, deadlineMin: Math.max(1, Math.min(180, Math.round(m))) }));
   }, []);
 
   const setInfiniteApproval = useCallback((on: boolean) => {

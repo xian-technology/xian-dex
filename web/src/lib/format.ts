@@ -38,6 +38,38 @@ export function formatNumber(value: number | string | bigint, maxDecimals = 6): 
   });
 }
 
+/**
+ * Plain decimal string (no grouping separators, no exponent) that survives
+ * Number() re-parsing — required for anything written into an amount input.
+ * formatNumber() is display-only: its locale grouping ("1,234.5") parses to NaN.
+ *
+ * Truncates instead of rounding: a "Max" value that rounded up past the real
+ * balance would fail the balance check it was meant to satisfy.
+ */
+export function toDecimalInput(value: number | string | bigint, maxDecimals = 8): string {
+  const n = toNumber(value);
+  if (!Number.isFinite(n) || n === 0) return "0";
+  const abs = Math.abs(n);
+  if (abs >= 1e21) {
+    // toFixed switches to exponent notation up here; integers only.
+    return n.toLocaleString("en-US", { useGrouping: false, maximumFractionDigits: 0 });
+  }
+  // Below 1, extend precision so leading zeros don't swallow small amounts.
+  const places =
+    abs >= 1
+      ? maxDecimals
+      : Math.min(18, maxDecimals + Math.max(0, -Math.floor(Math.log10(abs))));
+  let fixed = n.toFixed(18);
+  const dot = fixed.indexOf(".");
+  if (dot !== -1) {
+    fixed = fixed
+      .slice(0, dot + 1 + places)
+      .replace(/0+$/, "")
+      .replace(/\.$/, "");
+  }
+  return fixed === "" || fixed === "-" ? "0" : fixed;
+}
+
 export function formatPercent(value: number, decimals = 2): string {
   if (!Number.isFinite(value)) return "—";
   const sign = value > 0 ? "+" : "";

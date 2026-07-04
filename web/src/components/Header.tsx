@@ -1,6 +1,7 @@
 import { NavLink } from "react-router-dom";
 import { Wallet as WalletIcon, Zap, AlertTriangle, History, Lock } from "lucide-react";
 import { useState } from "react";
+import { ConnectButton } from "./ConnectButton";
 import { useWallet } from "../hooks/useWallet";
 import { useTxHistory } from "../hooks/useTxHistory";
 import { useChainCheck } from "../hooks/useChainCheck";
@@ -74,28 +75,12 @@ export function Header() {
           </span>
         )}
         {wallet.account ? (
-          <button className="btn btn-ghost mono" onClick={handleAddress}>
+          <button className="btn btn-ghost mono" onClick={handleAddress} title="Copy address">
             <WalletIcon size={14} />
             <span>{copied ? "Copied!" : shortAddress(wallet.account)}</span>
           </button>
         ) : (
-          <button
-            className="btn btn-primary"
-            disabled={wallet.connecting || !wallet.available}
-            onClick={() => wallet.connect()}
-            title={
-              wallet.info?.locked
-                ? "Your wallet is locked. Click to open the unlock prompt."
-                : undefined
-            }
-          >
-            {wallet.info?.locked ? <Lock size={14} /> : <WalletIcon size={14} />}
-            {wallet.connecting
-              ? "Connecting…"
-              : wallet.info?.locked
-                ? "Unlock Wallet"
-                : "Connect Wallet"}
-          </button>
+          <ConnectButton showIcon />
         )}
         <button
           className="icon-btn"

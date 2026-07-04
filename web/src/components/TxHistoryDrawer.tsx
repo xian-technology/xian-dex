@@ -3,6 +3,7 @@ import { CheckCircle2, XCircle, Loader2, X, Trash2, ExternalLink } from "lucide-
 import { useTxHistory } from "../hooks/useTxHistory";
 import { clearTxs, type TxStatus } from "../lib/txHistory";
 import { formatAge, copyToClipboard, shortAddress } from "../lib/format";
+import { useModalBehavior } from "../hooks/useModalBehavior";
 
 interface Props {
   open: boolean;
@@ -24,6 +25,7 @@ export function TxHistoryDrawer({ open, onClose }: Props) {
   const records = useTxHistory();
   const [tick, setTick] = useState(0);
   const [copied, setCopied] = useState<string | null>(null);
+  useModalBehavior(open, onClose);
 
   // Refresh "x ago" labels every 15s while open.
   useEffect(() => {
@@ -36,7 +38,13 @@ export function TxHistoryDrawer({ open, onClose }: Props) {
   if (!open) return null;
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <aside className="drawer" onClick={(e) => e.stopPropagation()}>
+      <aside
+        className="drawer"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Recent activity"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="modal-header">
           <h3>Recent activity</h3>
           <div className="row gap-sm">
