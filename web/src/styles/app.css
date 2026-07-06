@@ -1013,6 +1013,92 @@ button.badge:hover { filter: brightness(1.15); }
   border-radius: var(--r-md);
 }
 
+/* ── Candle chart (pair detail) ─────────────────────────────── */
+
+.candle-chart {
+  position: relative;
+  height: 380px;
+  animation: fade-in 0.25s ease both;
+}
+.candle-chart-canvas {
+  position: absolute;
+  inset: 0;
+}
+.candle-legend {
+  position: absolute;
+  top: 6px;
+  left: 8px;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  text-shadow: 0 1px 3px rgba(7, 7, 12, 0.9);
+}
+.candle-legend b { font-weight: 600; }
+.candle-legend-time { color: var(--fg-soft); }
+.candle-legend-vol { color: var(--fg-soft); }
+.candle-chart-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0 24px;
+  pointer-events: none;
+}
+
+.chart-stats {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: -4px 0 12px;
+}
+.chart-price {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  font-variant-numeric: tabular-nums;
+}
+.chart-price-unit {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.chart-price.tick-up { animation: price-flash-up 0.7s ease-out; }
+.chart-price.tick-down { animation: price-flash-down 0.7s ease-out; }
+@keyframes price-flash-up {
+  from { color: var(--success); }
+}
+@keyframes price-flash-down {
+  from { color: var(--danger); }
+}
+
+.chart-intervals {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 720px) {
+  .candle-chart { height: 300px; }
+  .chart-price { font-size: 20px; }
+}
+@media (max-width: 480px) {
+  .candle-chart { height: 260px; }
+  .candle-legend { gap: 7px; font-size: 10px; }
+}
+
 /* ── Drawer / tx history ────────────────────────────────────── */
 
 .drawer {

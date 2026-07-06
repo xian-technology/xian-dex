@@ -1,16 +1,27 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, RefreshCw } from "lucide-react";
 import { TokenIcon } from "../components/TokenIcon";
-import { Sparkline } from "../components/Sparkline";
+import { CandleChart } from "../components/CandleChart";
+import {
+  CANDLE_INTERVALS,
+  DEFAULT_CANDLE_INTERVAL,
+  fillCandleGaps,
+  intervalSeconds,
+  invertCandles
+} from "../lib/candles";
 import { getLpBalance, getPair, type PairInfo } from "../lib/dex";
 import { getTokenInfo, type TokenInfo } from "../lib/tokens";
+import { useCandles } from "../hooks/useCandles";
 import { useWallet } from "../hooks/useWallet";
 import { useRpcEpoch } from "../hooks/useRpcEpoch";
-import { formatCompact, formatNumber, shortAddress, copyToClipboard } from "../lib/format";
-
-const POLL_INTERVAL_MS = 12_000;
-const HISTORY_CAP = 90;
+import {
+  formatCompact,
+  formatNumber,
+  formatPrice,
+  shortAddress,
+  copyToClipboard
+} from "../lib/format";
 
 export default function PairDetail() {
   const { id } = useParams<{ id: string }>();
@@ -24,8 +35,15 @@ export default function PairDetail() {
   const [loading, setLoading] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
   const [copied, setCopied] = useState<string | null>(null);
-  const [history, setHistory] = useState<number[]>([]);
   const [inverted, setInverted] = useState(false);
+  const [intervalKey, setIntervalKey] = useState(DEFAULT_CANDLE_INTERVAL);
+  const candleFeed = useCandles(pairId, intervalKey);
+
+  // Raw candles are token1-per-token0; orient and make the tape continuous.
+  const candles = useMemo(() => {
+    const oriented = inverted ? invertCandles(candleFeed.candles) : candleFeed.candles;
+    return fillCandleGaps(oriented, intervalSeconds(intervalKey));
+  }, [candleFeed.candles, inverted, intervalKey]);
 
   useEffect(() => {
     if (!Number.isFinite(pairId) || pairId <= 0) return;
@@ -58,36 +76,6 @@ export default function PairDetail() {
     };
   }, [pairId, wallet.account, reloadKey, rpcEpoch]);
 
-  // Poll reserves to build a price-history sparkline (in-memory only).
-  useEffect(() => {
-    if (!Number.isFinite(pairId) || pairId <= 0) return;
-    let cancel = false;
-    setHistory([]);
-    const sample = async () => {
-      try {
-        const p = await getPair(pairId);
-        if (cancel || !p) return;
-        if (p.reserve0 <= 0 || p.reserve1 <= 0) return;
-        const price = inverted
-          ? p.reserve0 / p.reserve1
-          : p.reserve1 / p.reserve0;
-        setHistory((h) => {
-          const next = [...h, price];
-          if (next.length > HISTORY_CAP) next.shift();
-          return next;
-        });
-      } catch {
-        /* ignore polling errors */
-      }
-    };
-    void sample();
-    const handle = window.setInterval(sample, POLL_INTERVAL_MS);
-    return () => {
-      cancel = true;
-      window.clearInterval(handle);
-    };
-  }, [pairId, inverted]);
-
   async function copy(text: string) {
     await copyToClipboard(text);
     setCopied(text);
@@ -114,6 +102,15 @@ export default function PairDetail() {
   const price01 = pair.reserve0 > 0 ? pair.reserve1 / pair.reserve0 : 0;
   const price10 = pair.reserve1 > 0 ? pair.reserve0 / pair.reserve1 : 0;
   const share = pair.totalSupply > 0 ? (lp / pair.totalSupply) * 100 : 0;
+
+  const baseToken = inverted ? token1 : token0;
+  const quoteToken = inverted ? token0 : token1;
+  const lastCandle = candles.length > 0 ? candles[candles.length - 1] : null;
+  const windowOpen = candles.length > 0 ? candles[0].open : 0;
+  const windowChange =
+    lastCandle && windowOpen > 0 ? ((lastCandle.close - windowOpen) / windowOpen) * 100 : 0;
+  const windowVolume = candles.reduce((sum, c) => sum + c.volumeBase, 0);
+  const chartKey = `${pairId}:${intervalKey}:${inverted ? "inv" : "std"}:${rpcEpoch}`;
 
   return (
     <div className="page">
@@ -147,23 +144,54 @@ export default function PairDetail() {
       <div className="card">
         <div className="card-header">
           <h3>
-            Price · 1 {inverted ? token1.symbol : token0.symbol} →{" "}
-            {inverted ? token0.symbol : token1.symbol}
+            Price · 1 {baseToken.symbol} → {quoteToken.symbol}
           </h3>
           <div className="card-actions">
-            <button
-              className="chip"
-              onClick={() => {
-                setInverted((v) => !v);
-                setHistory([]);
-              }}
-            >
+            <div className="chart-intervals">
+              {CANDLE_INTERVALS.map((i) => (
+                <button
+                  key={i.key}
+                  className={`chip${i.key === intervalKey ? " chip-active" : ""}`}
+                  onClick={() => setIntervalKey(i.key)}
+                >
+                  {i.label}
+                </button>
+              ))}
+            </div>
+            <button className="chip" onClick={() => setInverted((v) => !v)}>
               Invert
             </button>
-            <span className="muted small">samples every {Math.round(POLL_INTERVAL_MS / 1000)}s</span>
           </div>
         </div>
-        <Sparkline values={history} height={120} />
+        {lastCandle && (
+          <div className="chart-stats">
+            {/* key remounts the price node per tick so the flash replays */}
+            <strong
+              key={`${chartKey}:${lastCandle.close}`}
+              className={`chart-price ${lastCandle.close >= lastCandle.open ? "tick-up" : "tick-down"}`}
+            >
+              {formatPrice(lastCandle.close)}
+              <span className="chart-price-unit">{quoteToken.symbol}</span>
+            </strong>
+            <span
+              className={`badge ${windowChange >= 0 ? "badge-accent" : "badge-danger"}`}
+              title="Change across the loaded history"
+            >
+              {windowChange >= 0 ? "+" : ""}
+              {windowChange.toFixed(2)}%
+            </span>
+            <span className="muted small">
+              Vol {formatCompact(windowVolume)} {baseToken.symbol}
+            </span>
+          </div>
+        )}
+        <CandleChart
+          candles={candles}
+          datasetKey={chartKey}
+          loading={candleFeed.loading}
+          error={candleFeed.error}
+          baseSymbol={baseToken.symbol}
+        />
       </div>
 
       <div className="grid-2">

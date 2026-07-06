@@ -1,5 +1,7 @@
 import { useMemo } from "react";
 
+import { formatPrice } from "../lib/format";
+
 interface Props {
   values: number[];
   width?: number;
@@ -63,23 +65,13 @@ export function Sparkline({
         <path d={path} stroke={stroke} strokeWidth={1.5} fill="none" />
       </svg>
       <div className="sparkline-foot">
-        <span className="muted small">low {formatTick(min)}</span>
+        <span className="muted small">low {formatPrice(min)}</span>
         <span className="small" style={{ color: changeColor }}>
           {change >= 0 ? "+" : ""}
           {change.toFixed(2)}%
         </span>
-        <span className="muted small">high {formatTick(max)}</span>
+        <span className="muted small">high {formatPrice(max)}</span>
       </div>
     </div>
   );
-}
-
-function formatTick(value: number): string {
-  if (!Number.isFinite(value)) return "—";
-  if (value === 0) return "0";
-  const abs = Math.abs(value);
-  if (abs >= 1000) return value.toLocaleString("en-US", { maximumFractionDigits: 2 });
-  if (abs >= 1) return value.toFixed(4);
-  if (abs >= 0.0001) return value.toFixed(6);
-  return value.toExponential(2);
 }

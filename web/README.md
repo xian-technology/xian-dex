@@ -119,8 +119,12 @@ src/
 - Add / remove liquidity with auto-derived second amount, new-pool
   creation, router approvals, and `con_pairs.liqApprove` for LP removal.
 - Portfolio with token balances and every LP position.
-- In-memory price sparkline on the pair detail page (polls reserves every
-  12s, ring buffer of 90 samples, invertible).
+- Candlestick chart on the pair detail page (TradingView
+  `lightweight-charts` over the node's `/dex_candles` BDS endpoint):
+  1m–1W intervals, volume histogram, crosshair OHLC legend, invertible
+  price axis, 10s tail polling so the open candle ticks live. Empty
+  buckets are bridged with flat zero-volume candles client-side (capped
+  at 2500 bars). Pool cards keep the lightweight reserve-poll sparkline.
 - Persistent transaction history drawer (last 50 actions) with status,
   contract.function, age, copy-able tx hash.
 

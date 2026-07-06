@@ -15,6 +15,7 @@
     "@xian-tech/provider": "file:../../xian-js/packages/provider",
     "@xian-tech/types": "file:../../xian-js/packages/types",
     "@xian-tech/web-kit": "file:../../xian-js/packages/web-kit",
+    "lightweight-charts": "^5.2.0",
     "lucide-react": "^1.11.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",

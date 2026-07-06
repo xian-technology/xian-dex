@@ -70,6 +70,21 @@ export function toDecimalInput(value: number | string | bigint, maxDecimals = 8)
   return fixed === "" || fixed === "-" ? "0" : fixed;
 }
 
+/**
+ * Fixed-width price rendering for charts and tickers: constant decimal
+ * counts per magnitude band keep axis labels and OHLC readouts from
+ * jittering as values tick, unlike formatNumber which trims zeros.
+ */
+export function formatPrice(value: number): string {
+  if (!Number.isFinite(value)) return "—";
+  if (value === 0) return "0";
+  const abs = Math.abs(value);
+  if (abs >= 1000) return value.toLocaleString("en-US", { maximumFractionDigits: 2 });
+  if (abs >= 1) return value.toFixed(4);
+  if (abs >= 0.0001) return value.toFixed(6);
+  return value.toExponential(2);
+}
+
 export function formatPercent(value: number, decimals = 2): string {
   if (!Number.isFinite(value)) return "—";
   const sign = value > 0 ? "+" : "";
