@@ -10,26 +10,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout xian-dex
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           path: xian-dex
 
       - name: Checkout xian-contracting
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: ${{ github.repository_owner }}/xian-contracting
           ref: main
           path: xian-contracting
 
       - name: Checkout xian-linter
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: ${{ github.repository_owner }}/xian-linter
           ref: main
           path: xian-linter
 
       - name: Checkout xian-contracts
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: ${{ github.repository_owner }}/xian-contracts
           ref: main
@@ -41,7 +41,7 @@ jobs:
           python-version: "3.14"
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@v8
 
       - name: Sync dependencies
         working-directory: xian-dex
@@ -66,12 +66,12 @@ jobs:
         working-directory: xian-dex/web
     steps:
       - name: Checkout xian-dex
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           path: xian-dex
 
       - name: Checkout xian-js
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: ${{ github.repository_owner }}/xian-js
           ref: main
