@@ -14,7 +14,7 @@
       "name": "con_pairs",
       "role": "pairs",
       "path": "src/con_pairs.py",
-      "sha256": "a59dd8afa52598c0e9ba52ab4b4cdb5cba93e21fc13c91ed8d4e26eb52e1091d",
+      "sha256": "cfba9878ed486f1dd02c140130a4cb20f13116f3bdedd537c22218de78a6d58e",
       "deploy_order": 10,
       "default_chi": 300000
     },

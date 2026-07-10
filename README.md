@@ -191,6 +191,9 @@ sending transactions.
   `set_zero_fee_trader(...)` for market makers or other approved flow.
   Zero-fee routing is signer-based and only applies through the router;
   direct pair swaps remain on the standard 30 bps fee path.
+- Protocol-fee toggles advance a global fee-accounting epoch. Each pair resets
+  its `kLast` baseline lazily at the next liquidity event, so growth accumulated
+  while fees were disabled is never charged retroactively after re-enabling.
 - Plain swap routes reject flagged fee-on-transfer tokens and require the
   supporting-fee router path instead.
 - Tokens that expose `get_metadata().precision` route through the DEX with
