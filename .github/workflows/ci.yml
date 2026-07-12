@@ -35,6 +35,13 @@ jobs:
           ref: main
           path: xian-contracts
 
+      - name: Checkout xian-stack
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ github.repository_owner }}/xian-stack
+          ref: main
+          path: xian-stack
+
       - name: Set up Python 3.14
         uses: actions/setup-python@v6
         with:

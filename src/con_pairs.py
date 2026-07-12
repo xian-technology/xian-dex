@@ -67,6 +67,7 @@ registered_lp_tokens = Hash(default_value=None)
 registered_lp_token_pairs = Hash(default_value=None)
 pairs_num = Variable()
 feeTo = Variable()
+fee_epoch = Variable()
 owner = Variable()
 balances = Hash(default_value=0.0)
 
@@ -180,15 +181,23 @@ def constructor():
 	pairs_num.set(0)
 	owner.set(ctx.signer)
 	feeTo.set(ctx.signer)
+	fee_epoch.set(0)
 	LOCK.set(False)
-	
 @export
 def enableFee(en: bool):
 	assert ctx.caller == owner.get(), "SNAKX: FORBIDDEN"
+	assert isinstance(en, bool), "SNAKX: INVALID_FEE_STATE"
+	currently_enabled = feeTo.get() != False
+	if en == currently_enabled:
+		return
 	if en:
 		feeTo.set(owner.get())
 	else:
 		feeTo.set(False)
+	# Invalidate every pair's fee baseline lazily. This prevents liquidity growth
+	# while fees are disabled from being charged after fees are re-enabled, without
+	# an unbounded loop over all pairs.
+	fee_epoch.set(fee_epoch.get() + 1)
 
 
 @export
@@ -243,6 +252,7 @@ def createPair(tokenA: str, tokenB: str, lpToken: str = None):
 	pairs[p_num, "totalSupply"] = 0.0
 	pairs[p_num, "lpToken"] = lpToken
 	pairs[p_num, "kLast"] = 0.0
+	pairs[p_num, "feeEpoch"] = fee_epoch.get()
 	pairs[p_num, "creationTime"] = now
 	
 	toks_to_pair[tokenA,tokenB] = p_num
@@ -434,6 +444,11 @@ def internal_update(pair: int, balance0: float, balance1: float):
 
 def internal_mintFee(pair: int, reserve0: float, reserve1: float):
 	feeOn = feeTo.get() != False
+	epoch = fee_epoch.get()
+	if pairs[pair, "feeEpoch"] != epoch:
+		pairs[pair, "feeEpoch"] = epoch
+		pairs[pair, "kLast"] = reserve0 * reserve1 if feeOn else 0.0
+		return feeOn
 	kLast = pairs[pair, "kLast"]
 	if (feeOn):
 		if (kLast != 0):

@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@xian-tech/client": "file:../../xian-js/packages/client",
+    "@xian-tech/dex": "file:../../xian-js/packages/dex",
     "@xian-tech/provider": "file:../../xian-js/packages/provider",
     "@xian-tech/types": "file:../../xian-js/packages/types",
     "@xian-tech/web-kit": "file:../../xian-js/packages/web-kit",

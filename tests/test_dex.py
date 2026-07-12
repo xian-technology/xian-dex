@@ -966,6 +966,141 @@ class TestDexRouter(unittest.TestCase):
             0,
         )
 
+    def test_protocol_fee_reenable_discards_fee_off_growth(self):
+        pair, lp_token, _ = self.create_pair(
+            "con_plain_mid",
+            "currency",
+        )
+        self.dex.addLiquidity(
+            tokenA="currency",
+            tokenB="con_plain_mid",
+            amountADesired=1000,
+            amountBDesired=1000,
+            amountAMin=1000,
+            amountBMin=1000,
+            to=self.lp,
+            deadline=self.deadline,
+            signer=self.lp,
+            environment={"now": self.now},
+        )
+
+        self.pairs.enableFee(en=False, signer=self.operator)
+        self.dex.swapExactTokenForToken(
+            amountIn=100,
+            amountOutMin=1,
+            pair=pair,
+            src="currency",
+            to=self.trader,
+            deadline=self.deadline,
+            signer=self.trader,
+            environment={"now": self.now},
+        )
+        self.pairs.enableFee(en=True, signer=self.operator)
+
+        owner_lp_before = lp_token.balance_of(
+            address="sys",
+            signer=self.operator,
+        )
+        self.dex.addLiquidity(
+            tokenA="currency",
+            tokenB="con_plain_mid",
+            amountADesired=100,
+            amountBDesired=100,
+            amountAMin=1,
+            amountBMin=1,
+            to=self.lp,
+            deadline=self.deadline,
+            signer=self.lp,
+            environment={"now": self.now},
+        )
+        owner_lp_after_reenable = lp_token.balance_of(
+            address="sys",
+            signer=self.operator,
+        )
+        self.assertEqual(owner_lp_after_reenable, owner_lp_before)
+
+        self.dex.swapExactTokenForToken(
+            amountIn=100,
+            amountOutMin=1,
+            pair=pair,
+            src="currency",
+            to=self.trader,
+            deadline=self.deadline,
+            signer=self.trader,
+            environment={"now": self.now},
+        )
+        self.dex.addLiquidity(
+            tokenA="currency",
+            tokenB="con_plain_mid",
+            amountADesired=100,
+            amountBDesired=100,
+            amountAMin=1,
+            amountBMin=1,
+            to=self.lp,
+            deadline=self.deadline,
+            signer=self.lp,
+            environment={"now": self.now},
+        )
+        owner_lp_after_fee_on_growth = lp_token.balance_of(
+            address="sys",
+            signer=self.operator,
+        )
+        self.assertGreater(owner_lp_after_fee_on_growth, owner_lp_after_reenable)
+
+    def test_idempotent_fee_enable_preserves_accrued_protocol_fees(self):
+        pair, lp_token, _ = self.create_pair(
+            "con_plain_mid",
+            "currency",
+        )
+        self.dex.addLiquidity(
+            tokenA="currency",
+            tokenB="con_plain_mid",
+            amountADesired=1000,
+            amountBDesired=1000,
+            amountAMin=1000,
+            amountBMin=1000,
+            to=self.lp,
+            deadline=self.deadline,
+            signer=self.lp,
+            environment={"now": self.now},
+        )
+        self.dex.swapExactTokenForToken(
+            amountIn=100,
+            amountOutMin=1,
+            pair=pair,
+            src="currency",
+            to=self.trader,
+            deadline=self.deadline,
+            signer=self.trader,
+            environment={"now": self.now},
+        )
+
+        # Reapplying the current setting is not a toggle and must not reset the
+        # pair baseline that captures fee-on growth.
+        self.pairs.enableFee(en=True, signer=self.operator)
+        owner_lp_before = lp_token.balance_of(
+            address="sys",
+            signer=self.operator,
+        )
+        self.dex.addLiquidity(
+            tokenA="currency",
+            tokenB="con_plain_mid",
+            amountADesired=100,
+            amountBDesired=100,
+            amountAMin=1,
+            amountBMin=1,
+            to=self.lp,
+            deadline=self.deadline,
+            signer=self.lp,
+            environment={"now": self.now},
+        )
+        owner_lp_after = lp_token.balance_of(
+            address="sys",
+            signer=self.operator,
+        )
+
+        self.assertGreater(owner_lp_after, owner_lp_before)
+
     def test_swap_sequence_preserves_constant_product_invariant(self):
         pair, _, _ = self.create_pair(
             "con_plain_mid",

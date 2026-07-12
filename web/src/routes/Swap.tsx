@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ArrowDownUp, ChevronDown, RefreshCw, Settings as SettingsIcon, Info, Share2 } from "lucide-react";
+import {
+  deadlineFromNow,
+  minimumAmountOut,
+  planXianDexV1ExactInSwap,
+  requiresApproval,
+  type XianDexV1ExactInQuote as QuoteResult
+} from "@xian-tech/dex";
 import { TokenIcon } from "../components/TokenIcon";
 import { ConnectButton } from "../components/ConnectButton";
 import { TokenSelectorModal } from "../components/TokenSelectorModal";
@@ -12,13 +19,11 @@ import { useToasts } from "../hooks/useToasts";
 import { useRpcEpoch } from "../hooks/useRpcEpoch";
 import {
   approveToken,
-  deadlineFromNow,
   getTradeFeeBps,
   invalidatePairCache,
   isFeeOnTransfer,
   quoteSwap,
-  swap,
-  type QuoteResult
+  swap
 } from "../lib/dex";
 import { getTokenInfo, getAllowance, getBalance, type TokenInfo } from "../lib/tokens";
 import { DEX_ROUTER, INFINITE_APPROVAL_AMOUNT, NATIVE_TOKEN } from "../lib/constants";
@@ -272,7 +277,7 @@ export default function Swap() {
 
   const minOut = useMemo(() => {
     if (!quote) return 0;
-    return quote.amountOut * (1 - settings.slippageBps / 10000);
+    return minimumAmountOut(quote.amountOut, settings.slippageBps);
   }, [quote, settings.slippageBps]);
 
   function flip() {
@@ -282,7 +287,7 @@ export default function Swap() {
   }
 
   const insufficient = quote && balanceFrom < quote.amountIn;
-  const needsApproval = !!fromToken && !!quote && allowance < quote.amountIn;
+  const needsApproval = !!fromToken && !!quote && requiresApproval(allowance, quote.amountIn);
   const priceImpactPct = quote ? quote.priceImpact * 100 : 0;
   const priceImpactClass =
     priceImpactPct >= 5 ? "danger" : priceImpactPct >= 1.5 ? "warning" : "muted";
@@ -292,6 +297,14 @@ export default function Swap() {
   const destFot = !!toToken && hopFotFlags.get(toToken.contract) === true;
   const useSupporting = feeOnTransferIn || destFot;
   const isMultiHop = (quote?.hops.length ?? 0) > 1;
+
+  function feeOnTransferTokens(): string[] {
+    const tokens = [...hopFotFlags.entries()]
+      .filter(([, flagged]) => flagged)
+      .map(([token]) => token);
+    if (feeOnTransferIn && fromToken) tokens.push(fromToken.contract);
+    return tokens;
+  }
 
   async function handleApprove() {
     if (!fromToken || !quote) return;
@@ -336,25 +349,22 @@ export default function Swap() {
       title: `Swapping ${formatNumber(quote.amountIn)} ${fromToken.symbol} → ${toToken.symbol}`
     });
     try {
-      const fn = useSupporting
-        ? "swapExactTokensForTokensSupportingFeeOnTransferTokens"
-        : "swapExactTokensForTokens";
+      const request = {
+        quote,
+        recipient: wallet.account,
+        slippageBps: settings.slippageBps,
+        deadline: deadlineFromNow(settings.deadlineMin),
+        feeOnTransferTokens: feeOnTransferTokens(),
+        supportingFeeOnTransfer: useSupporting
+      };
+      const fn = planXianDexV1ExactInSwap(request).call.function;
       const result = await track(
         {
           label: `Swap ${fromToken.symbol} → ${toToken.symbol}`,
           contract: DEX_ROUTER,
           function: fn
         },
-        () =>
-          swap({
-            amountIn: quote.amountIn,
-            amountOutMin: minOut,
-            path: quote.path,
-            src: fromToken.contract,
-            to: wallet.account!,
-            deadline: deadlineFromNow(settings.deadlineMin),
-            feeOnTransfer: useSupporting
-          }) as Promise<{
+        () => swap(request) as Promise<{
             accepted?: boolean | null;
             finalized?: boolean;
             txHash?: string;
@@ -576,20 +586,15 @@ export default function Swap() {
         account={wallet.account}
         estimateRequest={
           quote && fromToken && toToken && wallet.account
-            ? {
-                contract: DEX_ROUTER,
-                function: useSupporting
-                  ? "swapExactTokensForTokensSupportingFeeOnTransferTokens"
-                  : "swapExactTokensForTokens",
-                kwargs: {
-                  amountIn: quote.amountIn,
-                  amountOutMin: minOut,
-                  path: quote.path,
-                  src: fromToken.contract,
-                  to: wallet.account,
-                  deadline: deadlineFromNow(settings.deadlineMin)
-                }
-              }
+            ? planXianDexV1ExactInSwap({
+                quote,
+                recipient: wallet.account,
+                slippageBps: settings.slippageBps,
+                deadline: deadlineFromNow(settings.deadlineMin),
+                routerContract: DEX_ROUTER,
+                feeOnTransferTokens: feeOnTransferTokens(),
+                supportingFeeOnTransfer: useSupporting
+              }).call
             : null
         }
         busy={busy}

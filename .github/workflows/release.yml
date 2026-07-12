@@ -1,0 +1,114 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out xian-dex
+        uses: actions/checkout@v7
+        with:
+          path: xian-dex
+
+      - name: Check out released xian-js
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ github.repository_owner }}/xian-js
+          ref: v0.3.0
+          path: xian-js
+
+      - name: Check out pinned xian-stack
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ github.repository_owner }}/xian-stack
+          ref: 890a4caee2eb513a5d7a0b5cb728a78d0c541543
+          path: xian-stack
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Validate release version
+        working-directory: xian-dex
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import tomllib
+          from pathlib import Path
+
+          expected = os.environ["RELEASE_TAG"].removeprefix("v")
+          project = tomllib.loads(Path("pyproject.toml").read_text())["project"]["version"]
+          web = json.loads(Path("web/package.json").read_text())["version"]
+          bundle = json.loads(Path("contract-bundle.json").read_text())["version"]
+          interface = json.loads(Path("dex-interface.json").read_text())["version"]
+          versions = {"project": project, "web": web, "bundle": bundle, "interface": interface}
+          if any(version != expected for version in versions.values()):
+              raise SystemExit(f"release version {expected} does not match {versions}")
+          PY
+
+      - name: Validate contracts and interface
+        working-directory: xian-dex
+        run: |
+          uv sync --no-sources --group dev
+          uv run --no-sources ruff check .
+          uv run --no-sources python scripts/validate_contracts.py
+          uv run --no-sources pytest -q
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            xian-js/package-lock.json
+            xian-dex/web/package-lock.json
+
+      - name: Build released xian-js packages
+        working-directory: xian-js
+        run: |
+          npm ci
+          npm run build
+
+      - name: Build SnakX frontend
+        working-directory: xian-dex/web
+        run: |
+          npm ci
+          npm run build
+
+      - name: Assemble release assets
+        working-directory: xian-dex
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          version="${RELEASE_TAG#v}"
+          mkdir -p release-dist
+          tar -czf "release-dist/xian-dex-contracts-${version}.tar.gz" \
+            README.md contract-bundle.json dex-interface.json src
+          tar -C web/dist -czf "${GITHUB_WORKSPACE}/xian-dex/release-dist/snakx-web-${version}.tar.gz" .
+          cp contract-bundle.json dex-interface.json release-dist/
+          cd release-dist
+          sha256sum -- contract-bundle.json dex-interface.json ./*.tar.gz > SHA256SUMS
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            xian-dex/release-dist/* \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "xian-dex ${GITHUB_REF_NAME#v}" \
+            --generate-notes
