@@ -28,7 +28,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: ${{ github.repository_owner }}/xian-stack
-          ref: 890a4caee2eb513a5d7a0b5cb728a78d0c541543
+          ref: 3d84b11e040da4c65aab7e3cee9fa00a9bc5afe1
           path: xian-stack
 
       - name: Set up Python 3.14
