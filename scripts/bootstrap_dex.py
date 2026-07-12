@@ -80,6 +80,8 @@ def _build_command(args: argparse.Namespace, stack_dir: Path) -> list[str]:
         _bool_arg("seed-demo-pool", recipe["seed_demo_pool"]),
         _bool_arg("top-up-liquidity", recipe["top_up_liquidity"] or args.top_up_liquidity),
         _bool_arg("emit-test-swap", recipe["emit_test_swap"] or args.emit_test_swap),
+        "--chi-budget-mode",
+        args.chi_budget_mode,
     ]
     if args.dex_contracts_dir is not None:
         command.extend(
@@ -147,6 +149,15 @@ def _build_parser() -> argparse.ArgumentParser:
         help="emit a small local demo swap after installation",
     )
     parser.add_argument(
+        "--chi-budget-mode",
+        choices=("auto", "fixed"),
+        default="auto",
+        help=(
+            "use xian-py simulation-based chi estimation (default), or the "
+            "bundle/bootstrap fixed budgets"
+        ),
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="print the resolved stack command without submitting transactions",
@@ -163,6 +174,7 @@ def main() -> None:
         "product": "dex",
         "recipe": args.recipe,
         "stack_dir": str(stack_dir),
+        "chi_budget_mode": args.chi_budget_mode,
         "command": command,
     }
     if args.dex_contracts_dir is not None:

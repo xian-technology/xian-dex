@@ -21,6 +21,7 @@ Current coverage:
 - plain-route rejection for flagged fee-on-transfer tokens
 - helper absolute-deadline enforcement
 - helper quote behavior for zero-fee trader accounts
+- machine-readable interface drift against the bundle and exported contract API
 
 ```mermaid
 flowchart LR

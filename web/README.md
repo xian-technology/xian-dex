@@ -10,6 +10,9 @@ Vite + React 19 + TypeScript, no Tailwind).
 - **Vite 8** + **React 19** + **TypeScript** strict mode
 - **`@xian-tech/client`** for ABCI reads, simulation, token metadata, and
   balances
+- **`@xian-tech/dex`** through its canonical Xian DEX v1 adapter for
+  deterministic exact-in route quotes, price impact, slippage/deadline, and
+  approval/swap call planning
 - **`@xian-tech/provider`** types — wallet writes go through the injected
   `window.xian.provider` (`xian_sendCall`, `xian_requestAccounts`, etc.)
 - **react-router-dom 7** for routing
@@ -23,7 +26,7 @@ Vite + React 19 + TypeScript, no Tailwind).
 | `/swap` | Quote and execute swaps. Auto-detects fee-on-transfer source tokens and routes through the supporting path. Live price impact, slippage, deadline, and approval handling. |
 | `/pools` | Searchable, sortable list of every pair (`con_pairs.pairs_num`). Per-pair card with reserves and mid-prices. |
 | `/pools/:id` | Pair detail: reserves, prices, k = x·y, your LP balance and pool share, underlying token amounts. |
-| `/liquidity` | Add/remove liquidity. Auto-derives the optimal second amount for existing pairs, supports new-pair creation, and handles router approvals + LP-token approvals (`con_pairs.liqApprove`) for removal. |
+| `/liquidity` | Add/remove liquidity. Auto-derives the optimal second amount for existing pairs, supports new-pair creation, and approves `con_dex` on the pair-bound LP token before removal. |
 | `/portfolio` | All token balances (via `XianClient.getTokenBalances`) plus every LP position and your share of each pool. |
 
 ## Wallet integration
@@ -96,9 +99,10 @@ src/
 - `con_dex` is the router; `con_pairs` is the factory + pair store +
   LP-token ledger. The frontend uses both directly.
 - `removeLiquidity` requires the user to first call
-  `con_pairs.liqApprove(pair, amount, to="con_dex")` so the router can pull
-  LP from them. The Liquidity page handles this automatically before the
-  remove call.
+  `<lpToken>.approve(amount, to="con_dex")` on the pair-bound LP token so the
+  router can pull LP from them. Resolve `<lpToken>` from
+  `con_pairs.pairs[pair_id, "lpToken"]`; the Liquidity page handles both steps
+  automatically before the remove call.
 - Trade fee is 30 bps by default; signers flagged via
   `set_zero_fee_trader` get 0%. The Swap page calls `getTradeFeeBps` and
   shows a "0% fee" badge when applicable.
@@ -117,7 +121,7 @@ src/
   Trades are blocked when an intermediate token is fee-on-transfer (the
   contract rejects them in either route).
 - Add / remove liquidity with auto-derived second amount, new-pool
-  creation, router approvals, and `con_pairs.liqApprove` for LP removal.
+  creation, router approvals, and pair-bound LP-token approval for removal.
 - Portfolio with token balances and every LP position.
 - Candlestick chart on the pair detail page (TradingView
   `lightweight-charts` over the node's `/dex_candles` BDS endpoint):

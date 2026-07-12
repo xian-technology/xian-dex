@@ -15,8 +15,10 @@ here.
 ```mermaid
 flowchart LR
   Source["Contract sources"] --> Bundle["contract-bundle.json"]
+  Source --> Interface["dex-interface.json"]
   Bundle --> Bootstrap["scripts/bootstrap_dex.py"]
   Bundle --> CLI["xian-cli bundle validation"]
+  Interface --> Agents["Agent planners and tool adapters"]
   Bootstrap --> Chain["Running Xian network"]
   Stack["xian-stack localnet harness"] --> Bootstrap
   Web["SnakX web frontend"] -->|reads through SDK| Chain
@@ -63,12 +65,45 @@ building:
 | Localnet / release harness | `scripts/bootstrap_dex.py` delegating to the stack backend | exercises the same local deployment path while keeping the product entrypoint in this repo |
 | Operators / app starters | `scripts/bootstrap_dex.py` from this repo | installs the packaged DEX contracts onto a running network without putting product logic in `xian-cli` |
 | Dapps / custom tooling | `contract-bundle.json` and the canonical contract names | verifies source hashes and knows deployment order / roles |
+| AI agents / tool adapters | `dex-interface.json` plus `contract-bundle.json` | discovers typed reads and writes, event and error schemas, examples, and transaction safety policies without scraping source |
 
 Validate the bundle from this repo:
 
 ```bash
 uv run python scripts/validate_contracts.py
 uv run --project ../xian-cli xian contract bundle validate contract-bundle.json
+```
+
+### Machine-readable agent interface
+
+[`dex-interface.json`](dex-interface.json) is the first-class contract interface
+for agents and other generated clients. It identifies the canonical bundle,
+mirrors each bundled contract, and describes every exported function's argument
+names, source types, defaults, read/write interaction, return shape, and safety
+policies. It also publishes contract event fields, stable assertion messages,
+and complete multi-step examples for discovery, quoting, swaps, and liquidity.
+
+Load it directly as JSON and choose `read` functions for unsigned contract calls
+and `write` functions for simulation followed by wallet signing. Resolve every
+function-level `safety` id through the top-level `safety.policies` map before
+constructing a transaction. Example discovery with `jq`:
+
+```bash
+jq '.contracts[] | {
+  contract: .name,
+  reads: [.functions[] | select(.interaction == "read") | .name],
+  writes: [.functions[] | select(.interaction == "write") | .name]
+}' dex-interface.json
+
+jq '.examples[] | select(.name == "swap_exact_input")' dex-interface.json
+```
+
+The normal contract validator rejects drift in interface contract membership,
+bundle metadata and hashes, exported names/signatures/defaults, event field
+schemas, and stable assertion messages:
+
+```bash
+uv run python scripts/validate_contracts.py
 ```
 
 Bootstrap DEX contracts into a stack localnet from the product repo:
@@ -90,6 +125,11 @@ XIAN_NODE_URL=http://127.0.0.1:26657 \
 XIAN_WALLET_PRIVATE_KEY="$XIAN_PRIVATE_KEY" \
   uv run python scripts/bootstrap_dex.py --recipe local-demo
 ```
+
+The bootstrap uses xian-py's simulation-based automatic chi estimation by
+default, which avoids requiring the deployer to fund the much larger manifest
+ceilings. Pass `--chi-budget-mode fixed` when deliberately validating the
+bundle/bootstrap fixed budgets.
 
 Read DEX state from Python:
 
@@ -143,9 +183,10 @@ sending transactions.
 - **Router-driven liquidity.** Pair balance crediting is router-driven;
   unsolicited token transfers into `con_pairs` are not automatically
   attributed to any pair.
-- **Bundle as the canonical interface.** Downstream consumers deploy from
-  `contract-bundle.json` (hash-pinned source, contract roles, deployment
-  order, default chi budgets), not from raw `src/` files.
+- **Bundle and interface are canonical artifacts.** Downstream consumers deploy
+  from `contract-bundle.json` (hash-pinned source, contract roles, deployment
+  order, default chi budgets) and plan calls from `dex-interface.json`, not from
+  ad-hoc parsing of raw `src/` files.
 - **No off-chain automation here.** Event-driven actions, schedulers, and
   fillers belong in `xian-dex-automation`.
 - **Fee-on-transfer support is bounded.** The router handles
@@ -165,6 +206,8 @@ sending transactions.
     mint transferable LP tokens.
 - `contract-bundle.json` — machine-readable bundle manifest with source
   hashes, contract roles, deployment order, and default chi budgets.
+- `dex-interface.json` — agent-oriented typed contract functions, events,
+  errors, examples, and safety policies; validated against sources and bundle.
 - `tests/` — package-local router and pair integration tests, including
   protocol-fee minting, multi-hop routing, and LP token allowance flows.
 - `scripts/` — `bootstrap_dex.py` product-owned installer wrapper and
@@ -209,7 +252,7 @@ sending transactions.
 
 ```bash
 uv sync --group dev
-uv run python scripts/validate_contracts.py     # lint, compile, bundle hash
+uv run python scripts/validate_contracts.py     # lint, compile, bundle + interface drift
 uv run pytest                                   # contract tests
 ( cd web && npm install && npm run build )      # frontend TS build
 ```
@@ -222,4 +265,5 @@ not at `../xian-contracts/contracts`.
 
 - [web/README.md](web/README.md) — SnakX frontend routes and wallet integration
 - [contract-bundle.json](contract-bundle.json) — canonical hash-pinned bundle for downstream deployers
+- [dex-interface.json](dex-interface.json) — canonical machine-readable DEX calls, events, errors, examples, and safety metadata
 - [../xian-dex-automation/README.md](../xian-dex-automation/README.md) — deterministic event-driven DEX automation

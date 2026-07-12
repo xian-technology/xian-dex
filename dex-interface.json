@@ -1,0 +1,363 @@
+{
+  "schema": "xian.dex_interface.v1",
+  "schema_version": 1,
+  "name": "xian-dex",
+  "version": "0.1.0",
+  "description": "Agent-oriented interface for the canonical Xian DEX contracts.",
+  "bundle": {
+    "path": "contract-bundle.json",
+    "schema": "xian.contract_bundle.v1",
+    "name": "xian-dex",
+    "version": "0.1.0"
+  },
+  "type_system": {
+    "source": "Xian Contracting Python annotations",
+    "amount": "float values may execute as deterministic decimal values; honor token metadata precision",
+    "datetime.datetime": "absolute on-chain deadline",
+    "list": "ordered pair-id route when used as path",
+    "Any": "contract-defined JSON-compatible value"
+  },
+  "safety": {
+    "transaction_defaults": {
+      "simulate_before_submit": true,
+      "require_explicit_recipient": true,
+      "require_absolute_deadline_for_trades": true,
+      "derive_minimums_from_fresh_quotes": true,
+      "verify_receipt_and_events": true
+    },
+    "policies": {
+      "approval_required": "The signer must grant the router or helper only the allowance needed for the operation.",
+      "deadline": "Use an explicit future absolute deadline and refuse to sign after it expires.",
+      "fee_on_transfer": "Use supporting routes for flagged fee-on-transfer tokens; flagged bridge tokens are unsupported.",
+      "lp_registration": "A factory owner must register a canonical LP token before creating a pair.",
+      "low_level": "This is a low-level pair primitive; normal users and agents should prefer con_dex.",
+      "metadata_access": "Only the configured LP-token operator may update mutable metadata.",
+      "minter_only": "Only the configured con_pairs minter may mint or burn canonical LP tokens.",
+      "owner_only": "Only the contract owner may submit this transaction.",
+      "path": "Validate that each pair exists and that adjacent pairs connect in the declared order.",
+      "precision": "Normalize amounts to each token's declared non-negative integer precision.",
+      "router_only": "Only con_dex may call this pair-accounting or router-fee primitive.",
+      "signer_fee_tier": "Quotes depend on ctx.signer; quote and submit with the same signer identity.",
+      "slippage": "Set minimum received amounts from a fresh quote and an explicit risk limit."
+    }
+  },
+  "contracts": [
+    {
+      "name": "con_pairs",
+      "role": "pairs",
+      "path": "src/con_pairs.py",
+      "source_sha256": "cfba9878ed486f1dd02c140130a4cb20f13116f3bdedd537c22218de78a6d58e",
+      "deploy_default": true,
+      "description": "Pair factory, reserve accounting, pair swaps, and LP-token binding.",
+      "functions": [
+        {
+          "name": "enableFee",
+          "interaction": "write",
+          "arguments": [{"name": "en", "type": "bool", "required": true}],
+          "returns": "null",
+          "safety": ["owner_only"]
+        },
+        {
+          "name": "registerLpToken",
+          "interaction": "write",
+          "arguments": [
+            {"name": "tokenA", "type": "str", "required": true},
+            {"name": "tokenB", "type": "str", "required": true},
+            {"name": "lpToken", "type": "str", "required": true}
+          ],
+          "returns": "str",
+          "safety": ["owner_only", "lp_registration"]
+        },
+        {
+          "name": "registeredLpTokenFor",
+          "interaction": "read",
+          "arguments": [
+            {"name": "tokenA", "type": "str", "required": true},
+            {"name": "tokenB", "type": "str", "required": true}
+          ],
+          "returns": "str|null",
+          "safety": []
+        },
+        {
+          "name": "createPair",
+          "interaction": "write",
+          "arguments": [
+            {"name": "tokenA", "type": "str", "required": true},
+            {"name": "tokenB", "type": "str", "required": true},
+            {"name": "lpToken", "type": "str", "required": false, "default": null}
+          ],
+          "returns": "int",
+          "safety": ["lp_registration", "low_level"]
+        },
+        {
+          "name": "pairFor",
+          "interaction": "read",
+          "arguments": [
+            {"name": "tokenA", "type": "str", "required": true},
+            {"name": "tokenB", "type": "str", "required": true}
+          ],
+          "returns": "int|null",
+          "safety": []
+        },
+        {
+          "name": "lpTokenFor",
+          "interaction": "read",
+          "arguments": [{"name": "pair", "type": "int", "required": true}],
+          "returns": "str",
+          "safety": []
+        },
+        {
+          "name": "sync2",
+          "interaction": "write",
+          "arguments": [
+            {"name": "pair", "type": "int", "required": true},
+            {"name": "amount0", "type": "float", "required": false, "default": 0.0},
+            {"name": "amount1", "type": "float", "required": false, "default": 0.0}
+          ],
+          "returns": "null",
+          "safety": ["router_only", "low_level"]
+        },
+        {
+          "name": "getReserves",
+          "interaction": "read",
+          "arguments": [{"name": "pair", "type": "int", "required": true}],
+          "returns": "tuple<float,float,datetime.datetime>",
+          "safety": []
+        },
+        {
+          "name": "getSurplus",
+          "interaction": "read",
+          "arguments": [{"name": "pair", "type": "int", "required": true}],
+          "returns": "tuple<float,float>",
+          "safety": ["low_level"]
+        },
+        {
+          "name": "burn",
+          "interaction": "write",
+          "arguments": [
+            {"name": "pair", "type": "int", "required": true},
+            {"name": "to", "type": "str", "required": true}
+          ],
+          "returns": "tuple<float,float>",
+          "safety": ["low_level"]
+        },
+        {
+          "name": "mint",
+          "interaction": "write",
+          "arguments": [
+            {"name": "pair", "type": "int", "required": true},
+            {"name": "to", "type": "str", "required": true}
+          ],
+          "returns": "float",
+          "safety": ["low_level"]
+        },
+        {
+          "name": "swap",
+          "interaction": "write",
+          "arguments": [
+            {"name": "pair", "type": "int", "required": true},
+            {"name": "amount0Out", "type": "float", "required": true},
+            {"name": "amount1Out", "type": "float", "required": true},
+            {"name": "to", "type": "str", "required": true}
+          ],
+          "returns": "null",
+          "safety": ["low_level", "slippage"]
+        },
+        {
+          "name": "swapToPair",
+          "interaction": "write",
+          "arguments": [
+            {"name": "pair", "type": "int", "required": true},
+            {"name": "amount0Out", "type": "float", "required": true},
+            {"name": "amount1Out", "type": "float", "required": true},
+            {"name": "to", "type": "int", "required": true}
+          ],
+          "returns": "null",
+          "safety": ["low_level", "path"]
+        },
+        {
+          "name": "routerSwap",
+          "interaction": "write",
+          "arguments": [
+            {"name": "pair", "type": "int", "required": true},
+            {"name": "amount0Out", "type": "float", "required": true},
+            {"name": "amount1Out", "type": "float", "required": true},
+            {"name": "to", "type": "str", "required": true},
+            {"name": "fee_bps", "type": "int", "required": true}
+          ],
+          "returns": "null",
+          "safety": ["router_only", "low_level"]
+        },
+        {
+          "name": "routerSwapToPair",
+          "interaction": "write",
+          "arguments": [
+            {"name": "pair", "type": "int", "required": true},
+            {"name": "amount0Out", "type": "float", "required": true},
+            {"name": "amount1Out", "type": "float", "required": true},
+            {"name": "to", "type": "int", "required": true},
+            {"name": "fee_bps", "type": "int", "required": true}
+          ],
+          "returns": "null",
+          "safety": ["router_only", "low_level", "path"]
+        }
+      ],
+      "events": [
+        {"name": "PairCreated", "fields": [{"name": "token0", "type": "str", "indexed": true}, {"name": "token1", "type": "str", "indexed": true}, {"name": "pair", "type": "int", "indexed": false}]},
+        {"name": "LpTokenRegistered", "fields": [{"name": "token0", "type": "str", "indexed": true}, {"name": "token1", "type": "str", "indexed": true}, {"name": "lpToken", "type": "str", "indexed": false}]},
+        {"name": "Mint", "fields": [{"name": "pair", "type": "int", "indexed": true}, {"name": "amount0", "type": "int|float|decimal", "indexed": false}, {"name": "amount1", "type": "int|float|decimal", "indexed": false}, {"name": "to", "type": "str", "indexed": true}]},
+        {"name": "Burn", "fields": [{"name": "pair", "type": "int", "indexed": true}, {"name": "amount0", "type": "int|float|decimal", "indexed": false}, {"name": "amount1", "type": "int|float|decimal", "indexed": false}, {"name": "to", "type": "str", "indexed": true}]},
+        {"name": "Swap", "fields": [{"name": "pair", "type": "int", "indexed": true}, {"name": "amount0In", "type": "int|float|decimal", "indexed": false}, {"name": "amount1In", "type": "int|float|decimal", "indexed": false}, {"name": "amount0Out", "type": "int|float|decimal", "indexed": false}, {"name": "amount1Out", "type": "int|float|decimal", "indexed": false}, {"name": "to", "type": "str|int", "indexed": true}]},
+        {"name": "Sync", "fields": [{"name": "pair", "type": "int", "indexed": true}, {"name": "reserve0", "type": "int|float|decimal", "indexed": false}, {"name": "reserve1", "type": "int|float|decimal", "indexed": false}]}
+      ],
+      "errors": {
+        "messages": [
+          "Negative supply!", "SNAKX: BAD_ORDER", "SNAKX: BALANCE OVERFLOW", "SNAKX: FORBIDDEN", "SNAKX: IDENTICAL_ADDRESSES", "SNAKX: INSUFFICIENT_INPUT_AMOUNT", "SNAKX: INSUFFICIENT_LIQUIDITY", "SNAKX: INSUFFICIENT_LIQUIDITY_BURNED", "SNAKX: INSUFFICIENT_LIQUIDITY_MINTED", "SNAKX: INSUFFICIENT_OUTPUT_AMOUNT", "SNAKX: INVALID_FEE_BPS", "SNAKX: INVALID_FEE_STATE", "SNAKX: INVALID_LP_BURN_SOURCE", "SNAKX: INVALID_LP_TOKEN", "SNAKX: INVALID_PAIR", "SNAKX: INVALID_TO", "SNAKX: INVALID_TOKEN", "SNAKX: K", "SNAKX: LOCKED", "SNAKX: LP_TOKEN_ALREADY_REGISTERED", "SNAKX: LP_TOKEN_MISMATCH", "SNAKX: LP_TOKEN_NOT_REGISTERED", "SNAKX: NEGATIVE_AMOUNT", "SNAKX: NO_LP_TOKEN", "SNAKX: PAIR_EXISTS", "SNAKX: TokenA OVERFLOW", "SNAKX: TokenB OVERFLOW", "SNAKX: token0_missing", "SNAKX: token1_missing", "p2a Invalid value!", "p2a Negative balance!", "p2a Negative pair balance0!", "p2a Negative pair balance1!", "p2a Not enough coins to send!", "p2a Wrong token!", "p2p Invalid value!", "p2p Negative balance!", "p2p No token in TO", "p2p Not enough coins to send!", "p2p Wrong token!"
+        ],
+        "unlabeled_assertions": 0
+      }
+    },
+    {
+      "name": "con_dex",
+      "role": "router",
+      "path": "src/con_dex.py",
+      "source_sha256": "9efb8cd1859196985d7a1f59a082fe9aa5e396c1590fd610bb39b2de1f05532f",
+      "deploy_default": true,
+      "description": "Preferred router for liquidity, quotes, and single- or multi-hop swaps.",
+      "functions": [
+        {"name": "set_fee_on_transfer_token", "interaction": "write", "arguments": [{"name": "token", "type": "str", "required": true}, {"name": "enabled", "type": "bool", "required": true}], "returns": "null", "safety": ["owner_only", "fee_on_transfer"]},
+        {"name": "set_zero_fee_trader", "interaction": "write", "arguments": [{"name": "account", "type": "str", "required": true}, {"name": "enabled", "type": "bool", "required": true}], "returns": "null", "safety": ["owner_only", "signer_fee_tier"]},
+        {"name": "getTradeFeeBps", "interaction": "read", "arguments": [{"name": "account", "type": "str", "required": false, "default": null}], "returns": "int", "safety": ["signer_fee_tier"]},
+        {
+          "name": "addLiquidity", "interaction": "write",
+          "arguments": [
+            {"name": "tokenA", "type": "str", "required": true}, {"name": "tokenB", "type": "str", "required": true},
+            {"name": "amountADesired", "type": "float", "required": true}, {"name": "amountBDesired", "type": "float", "required": true},
+            {"name": "amountAMin", "type": "float", "required": true}, {"name": "amountBMin", "type": "float", "required": true},
+            {"name": "to", "type": "str", "required": true}, {"name": "deadline", "type": "datetime.datetime", "required": true},
+            {"name": "lpToken", "type": "str", "required": false, "default": null}
+          ],
+          "returns": "tuple<float,float,float>", "safety": ["approval_required", "deadline", "slippage", "precision", "lp_registration"]
+        },
+        {
+          "name": "removeLiquidity", "interaction": "write",
+          "arguments": [
+            {"name": "tokenA", "type": "str", "required": true}, {"name": "tokenB", "type": "str", "required": true},
+            {"name": "liquidity", "type": "float", "required": true}, {"name": "amountAMin", "type": "float", "required": true},
+            {"name": "amountBMin", "type": "float", "required": true}, {"name": "to", "type": "str", "required": true},
+            {"name": "deadline", "type": "datetime.datetime", "required": true}
+          ],
+          "returns": "tuple<float,float>", "safety": ["approval_required", "deadline", "slippage", "precision"]
+        },
+        {"name": "getAmountOut", "interaction": "read", "arguments": [{"name": "amountIn", "type": "float", "required": true}, {"name": "reserveIn", "type": "float", "required": true}, {"name": "reserveOut", "type": "float", "required": true}, {"name": "feeBps", "type": "int", "required": false, "default": {"source": "DEFAULT_TRADE_FEE_BPS"}}], "returns": "float", "safety": []},
+        {"name": "getAmountIn", "interaction": "read", "arguments": [{"name": "amountOut", "type": "float", "required": true}, {"name": "reserveIn", "type": "float", "required": true}, {"name": "reserveOut", "type": "float", "required": true}, {"name": "feeBps", "type": "int", "required": false, "default": {"source": "DEFAULT_TRADE_FEE_BPS"}}], "returns": "float", "safety": []},
+        {"name": "getAmountsOut", "interaction": "read", "arguments": [{"name": "amountIn", "type": "float", "required": true}, {"name": "src", "type": "str", "required": true}, {"name": "path", "type": "list", "required": true}], "returns": "list<float>", "safety": ["path", "precision", "signer_fee_tier"]},
+        {"name": "swapExactTokenForToken", "interaction": "write", "arguments": [{"name": "amountIn", "type": "float", "required": true}, {"name": "amountOutMin", "type": "float", "required": true}, {"name": "pair", "type": "int", "required": true}, {"name": "src", "type": "str", "required": true}, {"name": "to", "type": "str", "required": true}, {"name": "deadline", "type": "datetime.datetime", "required": true}], "returns": "float", "safety": ["approval_required", "deadline", "slippage", "precision", "signer_fee_tier"]},
+        {"name": "swapExactTokenForTokenSupportingFeeOnTransferTokens", "interaction": "write", "arguments": [{"name": "amountIn", "type": "float", "required": true}, {"name": "amountOutMin", "type": "float", "required": true}, {"name": "pair", "type": "int", "required": true}, {"name": "src", "type": "str", "required": true}, {"name": "to", "type": "str", "required": true}, {"name": "deadline", "type": "datetime.datetime", "required": true}], "returns": "float", "safety": ["approval_required", "deadline", "slippage", "precision", "signer_fee_tier", "fee_on_transfer"]},
+        {"name": "swapExactTokensForTokensSupportingFeeOnTransferTokens", "interaction": "write", "arguments": [{"name": "amountIn", "type": "float", "required": true}, {"name": "amountOutMin", "type": "float", "required": true}, {"name": "path", "type": "list", "required": true}, {"name": "src", "type": "str", "required": true}, {"name": "to", "type": "str", "required": true}, {"name": "deadline", "type": "datetime.datetime", "required": true}], "returns": "float", "safety": ["approval_required", "deadline", "slippage", "precision", "signer_fee_tier", "fee_on_transfer", "path"]},
+        {"name": "swapExactTokensForTokens", "interaction": "write", "arguments": [{"name": "amountIn", "type": "float", "required": true}, {"name": "amountOutMin", "type": "float", "required": true}, {"name": "path", "type": "list", "required": true}, {"name": "src", "type": "str", "required": true}, {"name": "to", "type": "str", "required": true}, {"name": "deadline", "type": "datetime.datetime", "required": true}], "returns": "float", "safety": ["approval_required", "deadline", "slippage", "precision", "signer_fee_tier", "path"]}
+      ],
+      "events": [
+        {"name": "ZeroFeeTraderUpdated", "fields": [{"name": "account", "type": "str", "indexed": true}, {"name": "enabled", "type": "bool", "indexed": false}]}
+      ],
+      "errors": {
+        "messages": ["SNAKX: EXPIRED", "SNAKX: FEE_TOKEN_REQUIRES_SUPPORTING_ROUTE", "SNAKX: FORBIDDEN", "SNAKX: INSUFFICIENT_AMOUNT", "SNAKX: INSUFFICIENT_A_AMOUNT", "SNAKX: INSUFFICIENT_B_AMOUNT", "SNAKX: INSUFFICIENT_INPUT_AMOUNT", "SNAKX: INSUFFICIENT_LIQUIDITY", "SNAKX: INSUFFICIENT_OUTPUT_AMOUNT", "SNAKX: INVALID_FEE_BPS", "SNAKX: INVALID_LENGTHS", "SNAKX: INVALID_PAIR", "SNAKX: INVALID_PATH", "SNAKX: INVALID_TOKEN", "SNAKX: LP_TOKEN_MISMATCH", "SNAKX: NEGATIVE_AMOUNT", "SNAKX: NO_PAIR", "SNAKX: UNSUPPORTED_INTERMEDIATE_FEE_TOKEN"],
+        "unlabeled_assertions": 1
+      }
+    },
+    {
+      "name": "con_dex_helper",
+      "role": "helper",
+      "path": "src/con_dex_helper.py",
+      "source_sha256": "0b7242bc2af032478138c4e58b5f2292fe4b0e970b8bc69eb6c4b0b3d7b98413",
+      "deploy_default": true,
+      "description": "Single-pair buy and sell convenience entrypoints.",
+      "functions": [
+        {"name": "buy", "interaction": "write", "arguments": [{"name": "buy_token", "type": "str", "required": true}, {"name": "sell_token", "type": "str", "required": true}, {"name": "amount", "type": "float", "required": true}, {"name": "slippage", "type": "float", "required": false, "default": 1}, {"name": "deadline", "type": "datetime.datetime", "required": false, "default": null}], "returns": "tuple<float,float>", "safety": ["approval_required", "deadline", "slippage", "signer_fee_tier", "fee_on_transfer"]},
+        {"name": "sell", "interaction": "write", "arguments": [{"name": "sell_token", "type": "str", "required": true}, {"name": "buy_token", "type": "str", "required": true}, {"name": "amount", "type": "float", "required": true}, {"name": "slippage", "type": "float", "required": false, "default": 1}, {"name": "deadline", "type": "datetime.datetime", "required": false, "default": null}], "returns": "tuple<float,float>", "safety": ["approval_required", "deadline", "slippage", "signer_fee_tier", "fee_on_transfer"]}
+      ],
+      "events": [],
+      "errors": {
+        "messages": ["Amount must be positive", "Deadline is required", "Insufficient balance: have {user_balance}, need {input_amount}", "Pair does not exist", "Slippage must be between 0 and 100%", "Trade deadline has expired"],
+        "unlabeled_assertions": 0
+      }
+    },
+    {
+      "name": "con_lp_token",
+      "role": "lp_token_template",
+      "path": "src/con_lp_token.py",
+      "source_sha256": "94055195c759edc945783d964123149efd5153dcdce613e7a8399735ee7b4506",
+      "deploy_default": false,
+      "description": "XSC001-compatible LP-token template deployed once per pair.",
+      "functions": [
+        {"name": "change_metadata", "interaction": "write", "arguments": [{"name": "key", "type": "str", "required": true}, {"name": "value", "type": "Any", "required": true}], "returns": "null", "safety": ["metadata_access"]},
+        {"name": "get_metadata", "interaction": "read", "arguments": [], "returns": "object", "safety": []},
+        {"name": "balance_of", "interaction": "read", "arguments": [{"name": "address", "type": "str", "required": true}], "returns": "float", "safety": []},
+        {"name": "allowance", "interaction": "read", "arguments": [{"name": "owner", "type": "str", "required": true}, {"name": "spender", "type": "str", "required": true}], "returns": "float", "safety": []},
+        {"name": "transfer", "interaction": "write", "arguments": [{"name": "amount", "type": "float", "required": true}, {"name": "to", "type": "str", "required": true}], "returns": "null", "safety": []},
+        {"name": "approve", "interaction": "write", "arguments": [{"name": "amount", "type": "float", "required": true}, {"name": "to", "type": "str", "required": true}], "returns": "null", "safety": ["approval_required"]},
+        {"name": "transfer_from", "interaction": "write", "arguments": [{"name": "amount", "type": "float", "required": true}, {"name": "to", "type": "str", "required": true}, {"name": "main_account", "type": "str", "required": true}], "returns": "null", "safety": ["approval_required"]},
+        {"name": "mint", "interaction": "write", "arguments": [{"name": "amount", "type": "float", "required": true}, {"name": "to", "type": "str", "required": true}], "returns": "null", "safety": ["minter_only"]},
+        {"name": "burn", "interaction": "write", "arguments": [{"name": "amount", "type": "float", "required": true}], "returns": "null", "safety": ["minter_only"]}
+      ],
+      "events": [
+        {"name": "Transfer", "fields": [{"name": "from", "type": "str", "indexed": true}, {"name": "to", "type": "str", "indexed": true}, {"name": "amount", "type": "int|float|decimal", "indexed": false}]},
+        {"name": "Approve", "fields": [{"name": "from", "type": "str", "indexed": true}, {"name": "to", "type": "str", "indexed": true}, {"name": "amount", "type": "int|float|decimal", "indexed": false}]},
+        {"name": "Mint", "fields": [{"name": "to", "type": "str", "indexed": true}, {"name": "amount", "type": "int|float|decimal", "indexed": false}]},
+        {"name": "Burn", "fields": [{"name": "from", "type": "str", "indexed": true}, {"name": "amount", "type": "int|float|decimal", "indexed": false}]}
+      ],
+      "errors": {
+        "messages": ["Cannot approve negative balances.", "Cannot burn negative balances.", "Cannot mint negative balances.", "Cannot send negative balances.", "Managed metadata cannot be changed.", "Negative supply.", "Not enough coins approved to send. You have {approvals[main_account, ctx.caller]} and are trying to spend {amount}", "Not enough coins to burn.", "Not enough coins to send.", "Only minter can burn tokens.", "Only minter can mint tokens.", "Only operator can set metadata.", "minter_address must be a non-empty string.", "operator_address must be a non-empty string."],
+        "unlabeled_assertions": 0
+      }
+    }
+  ],
+  "examples": [
+    {
+      "name": "discover_and_quote",
+      "description": "Resolve a canonical pair and quote a route for the same signer that may submit it.",
+      "steps": [
+        {"interaction": "read", "contract": "con_pairs", "function": "pairFor", "arguments": {"tokenA": "currency", "tokenB": "demo_token"}, "save_as": "pair"},
+        {"interaction": "read", "contract": "con_pairs", "function": "getReserves", "arguments": {"pair": "$pair"}, "save_as": "reserves"},
+        {"interaction": "read", "contract": "con_dex", "function": "getAmountsOut", "arguments": {"amountIn": 10, "src": "currency", "path": ["$pair"]}, "save_as": "amounts"}
+      ]
+    },
+    {
+      "name": "swap_exact_input",
+      "description": "Approve the input token, refresh the quote, derive a minimum, then submit with an absolute deadline.",
+      "steps": [
+        {"interaction": "write", "contract": "$input_token", "function": "approve", "arguments": {"amount": "$amountIn", "to": "con_dex"}},
+        {"interaction": "read", "contract": "con_dex", "function": "getAmountsOut", "arguments": {"amountIn": "$amountIn", "src": "$input_token", "path": "$path"}, "save_as": "amounts"},
+        {"interaction": "write", "contract": "con_dex", "function": "swapExactTokensForTokens", "arguments": {"amountIn": "$amountIn", "amountOutMin": "$risk_adjusted_minimum", "path": "$path", "src": "$input_token", "to": "$signer", "deadline": "$absolute_deadline"}}
+      ]
+    },
+    {
+      "name": "swap_fee_on_transfer",
+      "description": "Use the supporting route when the input or final output token is owner-flagged as fee-on-transfer.",
+      "steps": [
+        {"interaction": "write", "contract": "$input_token", "function": "approve", "arguments": {"amount": "$amountIn", "to": "con_dex"}},
+        {"interaction": "write", "contract": "con_dex", "function": "swapExactTokensForTokensSupportingFeeOnTransferTokens", "arguments": {"amountIn": "$amountIn", "amountOutMin": "$risk_adjusted_minimum", "path": "$path_without_flagged_bridge_tokens", "src": "$input_token", "to": "$signer", "deadline": "$absolute_deadline"}}
+      ]
+    },
+    {
+      "name": "add_liquidity",
+      "description": "Approve both tokens and submit desired and minimum amounts after confirming LP-token registration.",
+      "steps": [
+        {"interaction": "read", "contract": "con_pairs", "function": "registeredLpTokenFor", "arguments": {"tokenA": "$tokenA", "tokenB": "$tokenB"}, "save_as": "lpToken"},
+        {"interaction": "write", "contract": "$tokenA", "function": "approve", "arguments": {"amount": "$amountADesired", "to": "con_dex"}},
+        {"interaction": "write", "contract": "$tokenB", "function": "approve", "arguments": {"amount": "$amountBDesired", "to": "con_dex"}},
+        {"interaction": "write", "contract": "con_dex", "function": "addLiquidity", "arguments": {"tokenA": "$tokenA", "tokenB": "$tokenB", "amountADesired": "$amountADesired", "amountBDesired": "$amountBDesired", "amountAMin": "$amountAMin", "amountBMin": "$amountBMin", "to": "$signer", "deadline": "$absolute_deadline", "lpToken": "$lpToken"}}
+      ]
+    },
+    {
+      "name": "remove_liquidity",
+      "description": "Approve the bound LP token to con_dex and enforce minimum amounts for both assets.",
+      "steps": [
+        {"interaction": "read", "contract": "con_pairs", "function": "pairFor", "arguments": {"tokenA": "$tokenA", "tokenB": "$tokenB"}, "save_as": "pair"},
+        {"interaction": "read", "contract": "con_pairs", "function": "lpTokenFor", "arguments": {"pair": "$pair"}, "save_as": "lpToken"},
+        {"interaction": "write", "contract": "$lpToken", "function": "approve", "arguments": {"amount": "$liquidity", "to": "con_dex"}},
+        {"interaction": "write", "contract": "con_dex", "function": "removeLiquidity", "arguments": {"tokenA": "$tokenA", "tokenB": "$tokenB", "liquidity": "$liquidity", "amountAMin": "$amountAMin", "amountBMin": "$amountBMin", "to": "$signer", "deadline": "$absolute_deadline"}}
+      ]
+    }
+  ]
+}
