@@ -56,7 +56,7 @@ jobs:
       - name: Validate contracts and interface
         working-directory: xian-dex
         run: |
-          uv sync --no-sources --frozen --group dev
+          uv sync --no-sources --group dev
           uv run --no-sources ruff check .
           uv run --no-sources python scripts/validate_contracts.py
           uv run --no-sources pytest -q
