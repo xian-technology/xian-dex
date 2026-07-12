@@ -24,6 +24,13 @@ jobs:
           ref: v0.3.0
           path: xian-js
 
+      - name: Check out pinned xian-stack
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ github.repository_owner }}/xian-stack
+          ref: 890a4caee2eb513a5d7a0b5cb728a78d0c541543
+          path: xian-stack
+
       - name: Set up Python 3.14
         uses: actions/setup-python@v6
         with:
