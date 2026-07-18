@@ -4,6 +4,7 @@ import {
   planXianDexV1ExactInSwap,
   planXianDexV1TokenApproval,
   selectBestXianDexV1ExactInRoute,
+  xianFixed,
   type XianDexV1ExactInQuote,
   type XianDexV1Pair,
   type XianDexV1SwapPlanRequest,
@@ -17,7 +18,7 @@ import {
   DEFAULT_FEE_BPS,
   ZERO_FEE_BPS
 } from "./constants";
-import { toNumber } from "./format";
+import { toDecimalInput, toNumber } from "./format";
 
 export interface PairInfo extends XianDexV1Pair {
   totalSupply: number;
@@ -84,10 +85,30 @@ export async function getLpTokenName(pairId: number): Promise<string | null> {
 }
 
 export async function getLpBalance(pairId: number, address: string): Promise<number> {
+  return (await getLpBalanceSnapshot(pairId, address)).value;
+}
+
+export interface LpBalanceSnapshot {
+  lpToken: string | null;
+  value: number;
+  input: string;
+}
+
+export async function getLpBalanceSnapshot(
+  pairId: number,
+  address: string
+): Promise<LpBalanceSnapshot> {
   const lpToken = await getLpTokenName(pairId);
-  if (!lpToken) return 0;
+  if (!lpToken) return { lpToken: null, value: 0, input: "0" };
   const v = await getClient().getState(lpToken, "balances", [address]);
-  return toNumber(v);
+  const decimalSource = typeof v === "number" || typeof v === "string" || typeof v === "bigint"
+    ? v
+    : toNumber(v);
+  return {
+    lpToken,
+    value: toNumber(v),
+    input: toDecimalInput(decimalSource, 8)
+  };
 }
 
 export async function getLpAllowance(
@@ -236,10 +257,10 @@ export async function addLiquidity(args: AddLiquidityArgs): Promise<unknown> {
     kwargs: {
       tokenA: args.tokenA,
       tokenB: args.tokenB,
-      amountADesired: args.amountADesired,
-      amountBDesired: args.amountBDesired,
-      amountAMin: args.amountAMin,
-      amountBMin: args.amountBMin,
+      amountADesired: xianFixed(args.amountADesired),
+      amountBDesired: xianFixed(args.amountBDesired),
+      amountAMin: xianFixed(args.amountAMin),
+      amountBMin: xianFixed(args.amountBMin),
       to: args.to,
       deadline: args.deadline
     }
@@ -263,9 +284,9 @@ export async function removeLiquidity(args: RemoveLiquidityArgs): Promise<unknow
     kwargs: {
       tokenA: args.tokenA,
       tokenB: args.tokenB,
-      liquidity: args.liquidity,
-      amountAMin: args.amountAMin,
-      amountBMin: args.amountBMin,
+      liquidity: xianFixed(args.liquidity),
+      amountAMin: xianFixed(args.amountAMin),
+      amountBMin: xianFixed(args.amountBMin),
       to: args.to,
       deadline: args.deadline
     }

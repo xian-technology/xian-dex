@@ -47,6 +47,25 @@ export function formatNumber(value: number | string | bigint, maxDecimals = 6): 
  * balance would fail the balance check it was meant to satisfy.
  */
 export function toDecimalInput(value: number | string | bigint, maxDecimals = 8): string {
+  if (typeof value === "bigint") return value.toString();
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    const match = /^([+-]?)(\d*)(?:\.(\d*))?$/.exec(trimmed);
+    if (match && (match[2] || match[3])) {
+      const sign = match[1] === "-" ? "-" : "";
+      const integer = (match[2] || "0").replace(/^0+(?=\d)/, "") || "0";
+      const rawFraction = match[3] ?? "";
+      const leadingFractionZeros = integer === "0"
+        ? rawFraction.match(/^0*/)?.[0].length ?? 0
+        : 0;
+      const places = integer === "0"
+        ? Math.min(18, maxDecimals + leadingFractionZeros)
+        : maxDecimals;
+      const fraction = rawFraction.slice(0, places).replace(/0+$/, "");
+      const hasValue = integer !== "0" || [...fraction].some((digit) => digit !== "0");
+      return `${sign && hasValue ? sign : ""}${integer}${fraction ? `.${fraction}` : ""}`;
+    }
+  }
   const n = toNumber(value);
   if (!Number.isFinite(n) || n === 0) return "0";
   const abs = Math.abs(n);
@@ -77,8 +96,11 @@ export function toDecimalInput(value: number | string | bigint, maxDecimals = 8)
  */
 export function formatPrice(value: number): string {
   if (!Number.isFinite(value)) return "—";
-  if (value === 0) return "0";
   const abs = Math.abs(value);
+  // Chart scale arithmetic can hand the formatter an epsilon-sized value for
+  // a tick that is mathematically zero (for example 2.78e-16). Do not expose
+  // that floating-point residue as a scientific-notation axis label.
+  if (abs <= Number.EPSILON * 2) return "0";
   if (abs >= 1000) return value.toLocaleString("en-US", { maximumFractionDigits: 2 });
   if (abs >= 1) return value.toFixed(4);
   if (abs >= 0.0001) return value.toFixed(6);
@@ -89,6 +111,15 @@ export function formatPercent(value: number, decimals = 2): string {
   if (!Number.isFinite(value)) return "—";
   const sign = value > 0 ? "+" : "";
   return `${sign}${value.toFixed(decimals)}%`;
+}
+
+/**
+ * Describe the quote's fractional loss versus its zero-impact spot output.
+ * This is an execution-quality metric, not the direction of the market move.
+ */
+export function formatExecutionImpact(priceImpact: number, decimals = 2): string {
+  if (!Number.isFinite(priceImpact)) return "—";
+  return `${Math.max(0, priceImpact * 100).toFixed(decimals)}% worse than spot`;
 }
 
 export function bpsToPercent(bps: number): string {

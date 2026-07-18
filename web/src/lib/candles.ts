@@ -125,6 +125,24 @@ export function invertCandles(candles: Candle[]): Candle[] {
   }));
 }
 
+// BDS OHLC values are built from executions inside each bucket. On a quiet
+// market, a bucket with one trade therefore has open === close even when that
+// trade moved sharply away from the preceding price. Carry the prior close
+// into the next bucket's open so the rendered tape shows that movement while
+// retaining the indexed close, volume, trade count, and intrabucket extremes.
+export function connectCandleOpens(candles: Candle[]): Candle[] {
+  return candles.map((candle, index) => {
+    if (index === 0) return candle;
+    const open = candles[index - 1].close;
+    return {
+      ...candle,
+      open,
+      high: Math.max(candle.high, open),
+      low: Math.min(candle.low, open)
+    };
+  });
+}
+
 // The BDS omits buckets without trades. Insert flat zero-volume candles at
 // the previous close so the chart reads as a continuous tape. Output is
 // capped at maxCandles by dropping the oldest buckets first, which keeps a

@@ -30,8 +30,8 @@ import { DEX_ROUTER, INFINITE_APPROVAL_AMOUNT, NATIVE_TOKEN } from "../lib/const
 import {
   bpsToPercent,
   copyToClipboard,
+  formatExecutionImpact,
   formatNumber,
-  formatPercent,
   isValidContractName,
   toDecimalInput
 } from "../lib/format";
@@ -489,9 +489,9 @@ export default function Swap() {
               </span>
             </div>
             <div className="quote-row">
-              <span className="muted">Price impact</span>
+              <span className="muted">Execution impact</span>
               <span className={priceImpactClass}>
-                {formatPercent(-priceImpactPct, 2)}
+                {formatExecutionImpact(quote.priceImpact)}
               </span>
             </div>
             <div className="quote-row">
@@ -534,7 +534,7 @@ export default function Swap() {
             )}
             {priceImpactPct >= 5 && (
               <div className="info-row danger small">
-                <Info size={12} /> Price impact is high. Consider a smaller trade.
+                <Info size={12} /> Execution impact is high. Consider a smaller trade.
               </div>
             )}
           </div>

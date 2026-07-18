@@ -7,6 +7,7 @@ vi.mock("./xian", () => ({ getClient: () => ({ listDexCandles }) }));
 
 import {
   candleFromApi,
+  connectCandleOpens,
   fetchCandles,
   fillCandleGaps,
   invertCandles,
@@ -89,6 +90,38 @@ describe("invertCandles", () => {
     expect(c.close).toBe(0.4);
     expect(c.volumeBase).toBe(25);
     expect(c.volumeQuote).toBe(10);
+  });
+});
+
+describe("connectCandleOpens", () => {
+  it("shows movement from the prior close for a single-trade bucket", () => {
+    const connected = connectCandleOpens([
+      candle(0, 1.532717),
+      candle(300, 0.276932)
+    ]);
+
+    expect(connected[0]).toEqual(candle(0, 1.532717));
+    expect(connected[1]).toMatchObject({
+      open: 1.532717,
+      high: 1.532717,
+      low: 0.276932,
+      close: 0.276932,
+      trades: 1
+    });
+  });
+
+  it("includes the prior close without discarding intrabucket extremes", () => {
+    const connected = connectCandleOpens([
+      candle(0, 2),
+      candle(300, 2.5, { open: 3, high: 4, low: 2.25 })
+    ]);
+
+    expect(connected[1]).toMatchObject({
+      open: 2,
+      high: 4,
+      low: 2,
+      close: 2.5
+    });
   });
 });
 

@@ -23,10 +23,10 @@ Vite + React 19 + TypeScript, no Tailwind).
 
 | Route | Purpose |
 | --- | --- |
-| `/swap` | Quote and execute swaps. Auto-detects fee-on-transfer source tokens and routes through the supporting path. Live price impact, slippage, deadline, and approval handling. |
+| `/swap` | Quote and execute swaps. Auto-detects fee-on-transfer source tokens and routes through the supporting path. Live execution impact relative to the pool's spot price, slippage, deadline, and approval handling. |
 | `/pools` | Searchable, sortable list of every pair (`con_pairs.pairs_num`). Per-pair card with reserves and mid-prices. |
 | `/pools/:id` | Pair detail: reserves, prices, k = x·y, your LP balance and pool share, underlying token amounts. |
-| `/liquidity` | Add/remove liquidity. Auto-derives the optimal second amount for existing pairs, supports new-pair creation, and approves `con_dex` on the pair-bound LP token before removal. |
+| `/liquidity` | Add/remove liquidity. Auto-derives the optimal second amount for existing pairs, supports new-pair creation, lists only the connected account's positive LP positions for removal, offers exact Max/percentage removal controls, and approves `con_dex` on the pair-bound LP token before removal. |
 | `/portfolio` | All token balances (via `XianClient.getTokenBalances`) plus every LP position and your share of each pool. |
 
 ## Wallet integration
@@ -128,7 +128,9 @@ src/
   1m–1W intervals, volume histogram, crosshair OHLC legend, invertible
   price axis, 10s tail polling so the open candle ticks live. Empty
   buckets are bridged with flat zero-volume candles client-side (capped
-  at 2500 bars). Pool cards keep the lightweight reserve-poll sparkline.
+  at 2500 bars), and each traded bucket carries the prior close into its
+  displayed open so sparse single-trade buckets still show price direction.
+  Pool cards keep the lightweight reserve-poll sparkline.
 - Persistent transaction history drawer (last 50 actions) with status,
   contract.function, age, copy-able tx hash.
 

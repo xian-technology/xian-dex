@@ -598,6 +598,12 @@ button.badge:hover { filter: brightness(1.15); }
   align-items: center;
   gap: 6px;
 }
+.lp-position-option { width: 100%; text-align: left; }
+.lp-position-balance {
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+}
 
 .token-icon {
   display: inline-flex;

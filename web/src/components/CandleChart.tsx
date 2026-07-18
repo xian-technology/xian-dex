@@ -32,6 +32,25 @@ interface Props {
 
 const INITIAL_BARS = 120; // default zoom: most recent bars
 const RIGHT_PAD_BARS = 5;
+const PRICE_SCALE_TOP_MARGIN = 0.08;
+const PRICE_SCALE_MAX_BOTTOM_MARGIN = 0.24;
+
+function priceScaleBottomMargin(candles: Candle[]): number {
+  let min = Number.POSITIVE_INFINITY;
+  let max = 0;
+  for (const candle of candles) {
+    min = Math.min(min, candle.low);
+    max = Math.max(max, candle.high);
+  }
+  if (!Number.isFinite(min) || min <= 0 || max <= 0) {
+    return 0;
+  }
+
+  // Price-scale margins extend the numerical range as well as the pixels.
+  // Cap the lower padding before it can cross zero on a steep sell-off.
+  const zeroSafeMargin = (min * (1 - PRICE_SCALE_TOP_MARGIN)) / max;
+  return Math.min(PRICE_SCALE_MAX_BOTTOM_MARGIN, zeroSafeMargin * 0.9);
+}
 
 function cssColor(name: string, fallback: string): string {
   const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -133,7 +152,10 @@ export function CandleChart({ candles, datasetKey, loading, error, baseSymbol }:
       },
       rightPriceScale: {
         borderVisible: false,
-        scaleMargins: { top: 0.08, bottom: 0.24 }
+        scaleMargins: {
+          top: PRICE_SCALE_TOP_MARGIN,
+          bottom: PRICE_SCALE_MAX_BOTTOM_MARGIN
+        }
       },
       timeScale: {
         borderVisible: false,
@@ -165,8 +187,11 @@ export function CandleChart({ candles, datasetKey, loading, error, baseSymbol }:
       lastValueVisible: false,
       priceLineVisible: false
     });
-    chart.priceScale("volume").applyOptions({
-      scaleMargins: { top: 0.82, bottom: 0 }
+    volumeSeries.priceScale().applyOptions({
+      scaleMargins: { top: 0.82, bottom: 0 },
+      visible: false,
+      borderVisible: false,
+      ticksVisible: false
     });
 
     const onCrosshair = (param: MouseEventParams) => {
@@ -211,6 +236,13 @@ export function CandleChart({ candles, datasetKey, loading, error, baseSymbol }:
     const priceSeries = priceSeriesRef.current;
     const volumeSeries = volumeSeriesRef.current;
     if (!chart || !priceSeries || !volumeSeries) return;
+
+    chart.priceScale("right").applyOptions({
+      scaleMargins: {
+        top: PRICE_SCALE_TOP_MARGIN,
+        bottom: priceScaleBottomMargin(candles)
+      }
+    });
 
     const toBar = (c: Candle): CandlestickData => ({
       time: c.time as UTCTimestamp,

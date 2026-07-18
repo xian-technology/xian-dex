@@ -6,6 +6,7 @@ import { CandleChart } from "../components/CandleChart";
 import {
   CANDLE_INTERVALS,
   DEFAULT_CANDLE_INTERVAL,
+  connectCandleOpens,
   fillCandleGaps,
   intervalSeconds,
   invertCandles
@@ -42,7 +43,10 @@ export default function PairDetail() {
   // Raw candles are token1-per-token0; orient and make the tape continuous.
   const candles = useMemo(() => {
     const oriented = inverted ? invertCandles(candleFeed.candles) : candleFeed.candles;
-    return fillCandleGaps(oriented, intervalSeconds(intervalKey));
+    return fillCandleGaps(
+      connectCandleOpens(oriented),
+      intervalSeconds(intervalKey)
+    );
   }, [candleFeed.candles, inverted, intervalKey]);
 
   useEffect(() => {

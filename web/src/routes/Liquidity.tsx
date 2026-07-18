@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { ChevronDown, Plus, Minus, Info, Settings as SettingsIcon } from "lucide-react";
 import { TokenIcon } from "../components/TokenIcon";
 import { ConnectButton } from "../components/ConnectButton";
 import { TokenSelectorModal } from "../components/TokenSelectorModal";
+import { LpPositionSelectorModal } from "../components/LpPositionSelectorModal";
 import { SettingsModal } from "../components/SettingsModal";
 import { useWallet } from "../hooks/useWallet";
 import { useSettings } from "../hooks/useSettings";
@@ -16,7 +17,7 @@ import {
   deadlineFromNow,
   findDirectRoute,
   getLpAllowance,
-  getLpBalance,
+  getLpBalanceSnapshot,
   getLpTokenName,
   getPair,
   invalidatePairCache,
@@ -51,12 +52,14 @@ export default function Liquidity() {
   const [amountB, setAmountB] = useState("");
   const [pickA, setPickA] = useState(false);
   const [pickB, setPickB] = useState(false);
+  const [pickPosition, setPickPosition] = useState(false);
   const [pair, setPair] = useState<PairInfo | null>(null);
   const [balanceA, setBalanceA] = useState(0);
   const [balanceB, setBalanceB] = useState(0);
   const [allowanceA, setAllowanceA] = useState(0);
   const [allowanceB, setAllowanceB] = useState(0);
   const [lpBalance, setLpBalance] = useState(0);
+  const [lpBalanceInput, setLpBalanceInput] = useState("0");
   const [lpAllowance, setLpAllowance] = useState(0);
   const [removeAmount, setRemoveAmount] = useState("");
   const [busy, setBusy] = useState(false);
@@ -77,9 +80,6 @@ export default function Liquidity() {
         setTokenA(t0);
         setTokenB(t1);
         setPair(p);
-      } else if (!tokenA) {
-        const xian = await getTokenInfo(NATIVE_TOKEN).catch(() => null);
-        if (!cancel && xian) setTokenA(xian);
       }
     })();
     return () => {
@@ -87,6 +87,21 @@ export default function Liquidity() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Add mode starts with XIAN selected. Remove mode deliberately stays empty
+  // until the user selects an owned LP position.
+  useEffect(() => {
+    if (mode !== "add" || tokenA) return;
+    let cancel = false;
+    getTokenInfo(NATIVE_TOKEN)
+      .then((xian) => {
+        if (!cancel) setTokenA(xian);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancel = true;
+    };
+  }, [mode, tokenA]);
 
   // resolve pair when both tokens chosen
   useEffect(() => {
@@ -114,6 +129,7 @@ export default function Liquidity() {
         setAllowanceA(0);
         setAllowanceB(0);
         setLpBalance(0);
+        setLpBalanceInput("0");
         setLpAllowance(0);
         return;
       }
@@ -136,13 +152,18 @@ export default function Liquidity() {
       }
       if (pair) {
         tasks.push(
-          getLpBalance(pair.id, wallet.account).then((b) => !cancel && setLpBalance(b)),
+          getLpBalanceSnapshot(pair.id, wallet.account).then((balance) => {
+            if (cancel) return;
+            setLpBalance(balance.value);
+            setLpBalanceInput(balance.input);
+          }),
           getLpAllowance(pair.id, wallet.account, DEX_ROUTER).then(
             (a) => !cancel && setLpAllowance(a)
           )
         );
       } else {
         setLpBalance(0);
+        setLpBalanceInput("0");
         setLpAllowance(0);
       }
       await Promise.all(tasks);
@@ -571,9 +592,9 @@ export default function Liquidity() {
                 <span className="muted small">LP tokens to remove</span>
                 {wallet.account && pair && (
                   <span className="muted small">
-                    Balance: <strong>{formatNumber(lpBalance)}</strong>{" "}
+                    Balance: <strong>{lpBalanceInput}</strong>{" "}
                     {lpBalance > 0 && (
-                      <button className="link" onClick={() => setRemoveAmount(toDecimalInput(lpBalance))}>
+                      <button className="link" onClick={() => setRemoveAmount(lpBalanceInput)}>
                         Max
                       </button>
                     )}
@@ -590,13 +611,12 @@ export default function Liquidity() {
                   value={removeAmount}
                   onChange={(e) => setRemoveAmount(e.target.value.replace(/[^\d.]/g, ""))}
                 />
-                <button className="token-pick" onClick={() => setPickA(true)}>
-                  {tokenA ? (
+                <button className="token-pick" onClick={() => setPickPosition(true)}>
+                  {pair && tokenA && tokenB ? (
                     <>
                       <TokenIcon token={tokenA} size={24} />
-                      <span>/</span>
-                      {tokenB && <TokenIcon token={tokenB} size={24} />}
-                      <span>LP</span>
+                      <TokenIcon token={tokenB} size={24} />
+                      <span>{tokenA.symbol}/{tokenB.symbol} LP</span>
                     </>
                   ) : (
                     <>
@@ -613,7 +633,9 @@ export default function Liquidity() {
                     <button
                       key={p}
                       className="chip"
-                      onClick={() => setRemoveAmount(toDecimalInput((lpBalance * p) / 100))}
+                      onClick={() => setRemoveAmount(
+                        p === 100 ? lpBalanceInput : toDecimalInput((lpBalance * p) / 100)
+                      )}
                     >
                       {p}%
                     </button>
@@ -658,9 +680,9 @@ export default function Liquidity() {
             {!wallet.account ? (
               <ConnectButton block />
             ) : !pair ? (
-              <Link to="/portfolio" className="btn btn-ghost btn-block">
-                Pick a position from your portfolio
-              </Link>
+              <button className="btn btn-ghost btn-block" onClick={() => setPickPosition(true)}>
+                Select an LP position
+              </button>
             ) : !(Number(removeAmount) > 0) ? (
               <button className="btn btn-primary btn-block" disabled>
                 Enter LP amount
@@ -679,18 +701,31 @@ export default function Liquidity() {
       </div>
 
       <TokenSelectorModal
-        open={pickA}
+        open={pickA && mode === "add"}
         onClose={() => setPickA(false)}
         onSelect={(t) => setTokenA(t)}
         exclude={tokenB?.contract}
         account={wallet.account}
       />
       <TokenSelectorModal
-        open={pickB}
+        open={pickB && mode === "add"}
         onClose={() => setPickB(false)}
         onSelect={(t) => setTokenB(t)}
         exclude={tokenA?.contract}
         account={wallet.account}
+      />
+      <LpPositionSelectorModal
+        open={pickPosition && mode === "remove"}
+        account={wallet.account}
+        onClose={() => setPickPosition(false)}
+        onSelect={(position) => {
+          setTokenA(position.token0);
+          setTokenB(position.token1);
+          setPair(position.pair);
+          setLpBalance(position.balance);
+          setLpBalanceInput(position.balanceInput);
+          setRemoveAmount("");
+        }}
       />
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>

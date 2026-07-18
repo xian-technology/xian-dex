@@ -3,7 +3,7 @@ import { X, Info, Loader2 } from "lucide-react";
 import { TokenIcon } from "./TokenIcon";
 import { estimateChiFor, type ChiEstimate, type QuoteResult } from "../lib/dex";
 import type { TokenInfo } from "../lib/tokens";
-import { bpsToPercent, formatNumber } from "../lib/format";
+import { bpsToPercent, formatExecutionImpact, formatNumber } from "../lib/format";
 import { useModalBehavior } from "../hooks/useModalBehavior";
 
 interface Props {
@@ -123,9 +123,9 @@ export function SwapReviewModal({
               <span>{(slippageBps / 100).toFixed(2)}%</span>
             </div>
             <div className="kv">
-              <span className="muted">Price impact</span>
+              <span className="muted">Execution impact</span>
               <span className={impactClass}>
-                {priceImpactPct.toFixed(2)}%
+                {formatExecutionImpact(quote.priceImpact)}
               </span>
             </div>
             <div className="kv">
@@ -168,7 +168,7 @@ export function SwapReviewModal({
 
           {priceImpactPct >= 5 && (
             <div className="info-row danger small">
-              <Info size={12} /> High price impact. You may want to split the trade.
+              <Info size={12} /> Execution impact is high. Consider a smaller trade.
             </div>
           )}
 

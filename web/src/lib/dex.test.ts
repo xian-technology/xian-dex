@@ -15,11 +15,14 @@ vi.mock("./xian", () => ({ getClient: () => ({ getState }) }));
 
 import { DEX_ROUTER } from "./constants";
 import {
+  addLiquidity,
   approveLp,
   approveToken,
   deadlineFromNow,
+  getLpBalanceSnapshot,
   invalidatePairCache,
   quoteSwap,
+  removeLiquidity,
   swap
 } from "./dex";
 
@@ -85,6 +88,64 @@ describe("DEX transaction helpers", () => {
     });
   });
 
+  it("encodes add-liquidity decimals as Xian fixed-point values", async () => {
+    const deadline = deadlineFromNow(15);
+
+    await addLiquidity({
+      tokenA: "token_a",
+      tokenB: "currency",
+      amountADesired: 500,
+      amountBDesired: 531.43217083,
+      amountAMin: 497.5,
+      amountBMin: 528.77500997585,
+      to: "b".repeat(64),
+      deadline
+    });
+
+    expect(sendCall).toHaveBeenCalledWith({
+      contract: DEX_ROUTER,
+      function: "addLiquidity",
+      kwargs: {
+        tokenA: "token_a",
+        tokenB: "currency",
+        amountADesired: { __fixed__: "500" },
+        amountBDesired: { __fixed__: "531.43217083" },
+        amountAMin: { __fixed__: "497.5" },
+        amountBMin: { __fixed__: "528.77500997585" },
+        to: "b".repeat(64),
+        deadline
+      }
+    });
+  });
+
+  it("encodes remove-liquidity decimals as Xian fixed-point values", async () => {
+    const deadline = deadlineFromNow(15);
+
+    await removeLiquidity({
+      tokenA: "token_a",
+      tokenB: "currency",
+      liquidity: 9999.99999999,
+      amountAMin: 100.25,
+      amountBMin: 106.5,
+      to: "b".repeat(64),
+      deadline
+    });
+
+    expect(sendCall).toHaveBeenCalledWith({
+      contract: DEX_ROUTER,
+      function: "removeLiquidity",
+      kwargs: {
+        tokenA: "token_a",
+        tokenB: "currency",
+        liquidity: { __fixed__: "9999.99999999" },
+        amountAMin: { __fixed__: "100.25" },
+        amountBMin: { __fixed__: "106.5" },
+        to: "b".repeat(64),
+        deadline
+      }
+    });
+  });
+
   it("quotes cached chain pairs through the shared deterministic planner", async () => {
     const pairState = {
       "1": { token0: "a", token1: "b", reserve0: 1_000, reserve1: 1_000 },
@@ -120,6 +181,25 @@ describe("DEX transaction helpers", () => {
       function: "approve",
       kwargs: { amount: { __fixed__: "100" }, to: DEX_ROUTER }
     });
+  });
+
+  it("preserves the chain's exact LP balance for Max removal", async () => {
+    getState
+      .mockResolvedValueOnce("con_lp_pair_1")
+      .mockResolvedValueOnce("9999.99999999");
+
+    const balance = await getLpBalanceSnapshot(1, "a".repeat(64));
+
+    expect(balance).toEqual({
+      lpToken: "con_lp_pair_1",
+      value: 9999.99999999,
+      input: "9999.99999999"
+    });
+    expect(getState).toHaveBeenLastCalledWith(
+      "con_lp_pair_1",
+      "balances",
+      ["a".repeat(64)]
+    );
   });
 
   it("throws when the pair has no bound LP token", async () => {
