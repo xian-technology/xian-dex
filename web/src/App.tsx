@@ -76,7 +76,9 @@ export default function App() {
               </ErrorBoundary>
             </main>
             <footer className="app-footer">
-              <span className="muted small">SnakX • Xian DEX</span>
+              <span className="muted small">
+                SnakX • {import.meta.env.VITE_XIAN_NETWORK_LABEL?.trim() || "Xian DEX"}
+              </span>
               <span className="muted small">
                 Built on{" "}
                 <a href="https://xian.org" className="link" target="_blank" rel="noreferrer">

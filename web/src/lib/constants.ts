@@ -1,6 +1,6 @@
 export const DEX_ROUTER = "con_dex";
 export const DEX_PAIRS = "con_pairs";
-export const DEFAULT_RPC = "http://127.0.0.1:26657";
+export const DEFAULT_RPC = import.meta.env.VITE_XIAN_RPC_URL?.trim() || "http://127.0.0.1:26657";
 
 export const DEFAULT_FEE_BPS = 30;
 export const ZERO_FEE_BPS = 0;

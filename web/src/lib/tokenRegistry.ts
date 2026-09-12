@@ -25,9 +25,14 @@ export const TOKEN_REGISTRY: RegistryEntry[] = [
     contract: "currency",
     symbol: "XIAN",
     name: "Xian"
-  }
-  // Add more known Xian tokens here, e.g.:
-  // { contract: "con_usdc_lst001", symbol: "USDC", name: "USD Coin" },
+  },
+  ...Array.from(new Set<string>(
+    (import.meta.env.VITE_XIAN_TOKEN_CONTRACTS ?? "")
+      .split(",")
+      .map((contract: string) => contract.trim())
+  ))
+    .filter((contract) => contract !== "currency" && /^[A-Za-z_][A-Za-z0-9_]*$/.test(contract))
+    .map((contract) => ({ contract }))
 ];
 
 export function registryContracts(): string[] {

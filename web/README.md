@@ -62,6 +62,17 @@ npm run build  # tsc -b && vite build → dist/
 The default RPC is `http://127.0.0.1:26657`. Override it from the Settings
 modal in the UI (the value is saved per-browser).
 
+For a hosted build, set `VITE_XIAN_RPC_URL` to the operator's HTTPS RPC URL
+when running `npm run build`. Optionally set `VITE_XIAN_NETWORK_LABEL` to a
+visible network label, such as `Community testnet · Test tokens only`.
+`VITE_XIAN_TOKEN_CONTRACTS` accepts comma-separated deployed token contract names
+to include in the picker alongside XIAN. Metadata is read from the configured
+chain; duplicates and invalid contract names are ignored.
+These are public build settings; never put private keys in Vite variables.
+Existing browser RPC preferences still override the build default. Serve
+`dist/` with an SPA fallback to `index.html`, and configure a matching network
+in the browser wallet before sending transactions.
+
 ## Layout
 
 ```
