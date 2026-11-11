@@ -48,26 +48,16 @@ def token_precision(token: str):
 	return None
 
 
-def token_scale(precision: int):
-	scale = 1
-	for step in range(0, precision):
-		scale = scale * 10
-	return scale
-
-
-def normalize_token_amount(token: str, amount: float, round_up: bool = False):
+def normalize_token_amount(token: str, amount: decimal, round_up: bool = False):
 	assert amount >= 0, "SNAKX: NEGATIVE_AMOUNT"
 	precision = token_precision(token)
 	if precision is None:
 		return amount
-	scale = token_scale(precision)
-	scaled = amount * scale
-	normalized = int(scaled)
-	if round_up and normalized < scaled:
-		normalized = normalized + 1
+	mode = "ceil" if round_up else "floor"
+	result = quantize(amount, min(precision, 30), mode)
 	if precision == 0:
-		return normalized
-	return normalized / scale
+		return int(result)
+	return result
 
 
 def validate_fee_bps(fee_bps: int):
@@ -94,13 +84,13 @@ def actual_balance(token: str, address: str):
 	return 0 if balance is None else balance
 
 
-def transfer_into_pairs(token: str, src: str, amount: float):
+def transfer_into_pairs(token: str, src: str, amount: decimal):
 	balance_before = actual_balance(token, DEX_PAIRS)
 	safeTransferFrom(token, src, DEX_PAIRS, amount)
 	return actual_balance(token, DEX_PAIRS) - balance_before
 
 
-def transfer_lp_into_pairs(pair: int, src: str, amount: float):
+def transfer_lp_into_pairs(pair: int, src: str, amount: decimal):
 	pairs = PAIRS()
 	lp_token = pairs.lpTokenFor(pair)
 	importlib.import_module(lp_token).transfer_from(amount, DEX_PAIRS, src)
@@ -140,13 +130,13 @@ def assert_plain_path(src: str, path: list):
 		current = token1 if current == token0 else token0
 		assert not fee_on_transfer_tokens[current], 'SNAKX: FEE_TOKEN_REQUIRES_SUPPORTING_ROUTE'
 
-def safeTransferFrom(token: str, src: str, to: str, value: float):
+def safeTransferFrom(token: str, src: str, to: str, value: decimal):
 	value = normalize_token_amount(token, value)
 	assert value > 0, 'SNAKX: INSUFFICIENT_INPUT_AMOUNT'
 	t = load_token(token)
 	t.transfer_from(value, to, src)
 	
-def quote(amountA: float, reserveA: float, reserveB: float):
+def quote(amountA: decimal, reserveA: decimal, reserveB: decimal):
 	assert amountA > 0, 'SNAKX: INSUFFICIENT_AMOUNT'
 	assert reserveA > 0 and reserveB > 0, 'SNAKX: INSUFFICIENT_LIQUIDITY'
 	return (amountA * reserveB) / reserveA
@@ -173,10 +163,10 @@ def getTradeFeeBps(account: str = None):
 def internal_addLiquidity(
 tokenA: str,
 tokenB: str,
-amountADesired: float,
-amountBDesired: float,
-amountAMin: float,
-amountBMin: float,
+amountADesired: decimal,
+amountBDesired: decimal,
+amountAMin: decimal,
+amountBMin: decimal,
 lpToken: str = None):
 	pairs = PAIRS()
 	
@@ -206,10 +196,10 @@ lpToken: str = None):
 def addLiquidity(
 	tokenA: str,
 	tokenB: str,
-	amountADesired: float,
-	amountBDesired: float,
-	amountAMin: float,
-	amountBMin: float,
+	amountADesired: decimal,
+	amountBDesired: decimal,
+	amountAMin: decimal,
+	amountBMin: decimal,
 	to: str,
 	deadline: datetime.datetime,
 	lpToken: str = None
@@ -247,9 +237,9 @@ def addLiquidity(
 def removeLiquidity(
 	tokenA: str,
 	tokenB: str,
-	liquidity: float,
-	amountAMin: float,
-	amountBMin: float,
+	liquidity: decimal,
+	amountAMin: decimal,
+	amountBMin: decimal,
 	to: str,
 	deadline: datetime.datetime
 	):
@@ -279,7 +269,7 @@ def removeLiquidity(
 
 	return actual_amountA, actual_amountB
 	
-def get_amount_out_for_fee(amountIn: float, reserveIn: float, reserveOut: float, fee_bps: int):
+def get_amount_out_for_fee(amountIn: decimal, reserveIn: decimal, reserveOut: decimal, fee_bps: int):
 	validate_fee_bps(fee_bps)
 	assert amountIn > 0, 'SNAKX: INSUFFICIENT_INPUT_AMOUNT'
 	assert reserveIn > 0 and reserveOut > 0, 'SNAKX: INSUFFICIENT_LIQUIDITY'
@@ -290,7 +280,7 @@ def get_amount_out_for_fee(amountIn: float, reserveIn: float, reserveOut: float,
 #(x*997*y)/(z*1000+997*x) = (x*0.997*y)/(z+0.997*x)
 
 
-def get_amount_in_for_fee(amountOut: float, reserveIn: float, reserveOut: float, fee_bps: int):
+def get_amount_in_for_fee(amountOut: decimal, reserveIn: decimal, reserveOut: decimal, fee_bps: int):
 	validate_fee_bps(fee_bps)
 	assert amountOut > 0, 'SNAKX: INSUFFICIENT_OUTPUT_AMOUNT'
 	assert reserveIn > 0 and reserveOut > 0, 'SNAKX: INSUFFICIENT_LIQUIDITY'
@@ -303,16 +293,16 @@ def get_amount_in_for_fee(amountOut: float, reserveIn: float, reserveOut: float,
 
 
 @export
-def getAmountOut(amountIn: float, reserveIn: float, reserveOut: float, feeBps: int = DEFAULT_TRADE_FEE_BPS):
+def getAmountOut(amountIn: decimal, reserveIn: decimal, reserveOut: decimal, feeBps: int = DEFAULT_TRADE_FEE_BPS):
 	return get_amount_out_for_fee(amountIn, reserveIn, reserveOut, feeBps)
 
 
 @export
-def getAmountIn(amountOut: float, reserveIn: float, reserveOut: float, feeBps: int = DEFAULT_TRADE_FEE_BPS):
+def getAmountIn(amountOut: decimal, reserveIn: decimal, reserveOut: decimal, feeBps: int = DEFAULT_TRADE_FEE_BPS):
 	return get_amount_in_for_fee(amountOut, reserveIn, reserveOut, feeBps)
 
 
-def get_amounts_out_for_fee(amountIn: float, src: str, path: list, fee_bps: int):
+def get_amounts_out_for_fee(amountIn: decimal, src: str, path: list, fee_bps: int):
 	validate_fee_bps(fee_bps)
 	assert len(path) >= 1, 'SNAKX: INVALID_PATH'
 	pairs = PAIRS()
@@ -340,7 +330,7 @@ def get_amounts_out_for_fee(amountIn: float, src: str, path: list, fee_bps: int)
 	return amounts
 
 @export
-def getAmountsOut(amountIn: float, src: str, path: list):
+def getAmountsOut(amountIn: decimal, src: str, path: list):
 	return get_amounts_out_for_fee(
 		normalize_token_amount(src, amountIn),
 		src,
@@ -350,8 +340,8 @@ def getAmountsOut(amountIn: float, src: str, path: list):
 
 @export
 def swapExactTokenForToken(
-	amountIn: float,
-	amountOutMin: float,
+	amountIn: decimal,
+	amountOutMin: decimal,
 	pair: int,
 	src: str,
 	to: str,
@@ -386,8 +376,8 @@ def swapExactTokenForToken(
 	
 @export
 def swapExactTokenForTokenSupportingFeeOnTransferTokens(
-	amountIn: float,
-	amountOutMin: float,
+	amountIn: decimal,
+	amountOutMin: decimal,
 	pair: int,
 	src: str,
 	to: str,
@@ -434,7 +424,7 @@ def swapExactTokenForTokenSupportingFeeOnTransferTokens(
 	return rv
 	
 	
-def internal_swap(amounts: list[float], src: str, path: list[int], to: str, fee_bps: int):
+def internal_swap(amounts: list[decimal], src: str, path: list[int], to: str, fee_bps: int):
 	assert len(amounts) == len(path) + 1, 'SNAKX: INVALID_LENGTHS'
 	pairs = PAIRS()
 	
@@ -459,7 +449,7 @@ def internal_swap(amounts: list[float], src: str, path: list[int], to: str, fee_
 			
 	pairs.routerSwap(path[-1], out0, out1, to, fee_bps)
 	
-def internal_swap_fee(amounts: list[float], amountOutMin: float, src: str, path: list[int], to: str, fee_bps: int):
+def internal_swap_fee(amounts: list[decimal], amountOutMin: decimal, src: str, path: list[int], to: str, fee_bps: int):
 	assert len(amounts) == len(path) + 1, 'SNAKX: INVALID_LENGTHS'
 	pairs = PAIRS()
 	
@@ -494,8 +484,8 @@ def internal_swap_fee(amounts: list[float], amountOutMin: float, src: str, path:
 	
 @export
 def swapExactTokensForTokensSupportingFeeOnTransferTokens(
-	amountIn: float,
-	amountOutMin: float,
+	amountIn: decimal,
+	amountOutMin: decimal,
 	path: list,
 	src: str,
 	to: str,
@@ -531,8 +521,8 @@ def swapExactTokensForTokensSupportingFeeOnTransferTokens(
 	
 @export
 def swapExactTokensForTokens(
-	amountIn: float,
-	amountOutMin: float,
+	amountIn: decimal,
+	amountOutMin: decimal,
 	path: list,
 	src: str,
 	to: str,

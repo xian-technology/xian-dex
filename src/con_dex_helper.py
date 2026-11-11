@@ -8,8 +8,8 @@ pairs = ForeignHash(foreign_contract=DEX_PAIRS, foreign_name='pairs')
 def buy(
     buy_token: str, 
     sell_token: str, 
-    amount: float, 
-    slippage: float = 1, 
+    amount: decimal,
+    slippage: decimal = 1,
     deadline: datetime.datetime = None
 ):
     assert amount > 0, "Amount must be positive"
@@ -73,8 +73,8 @@ def buy(
 def sell(
     sell_token: str, 
     buy_token: str, 
-    amount: float, 
-    slippage: float = 1, 
+    amount: decimal,
+    slippage: decimal = 1,
     deadline: datetime.datetime = None
 ):
     assert amount > 0, "Amount must be positive"

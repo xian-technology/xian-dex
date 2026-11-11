@@ -10,7 +10,7 @@ TransferEvent = LogEvent(
     {
         "from": {"type": str, "idx": True},
         "to": {"type": str, "idx": True},
-        "amount": (int, float, decimal),
+        "amount": (int, decimal),
     },
 )
 ApproveEvent = LogEvent(
@@ -18,21 +18,21 @@ ApproveEvent = LogEvent(
     {
         "from": {"type": str, "idx": True},
         "to": {"type": str, "idx": True},
-        "amount": (int, float, decimal),
+        "amount": (int, decimal),
     },
 )
 MintEvent = LogEvent(
     "Mint",
     {
         "to": {"type": str, "idx": True},
-        "amount": (int, float, decimal),
+        "amount": (int, decimal),
     },
 )
 BurnEvent = LogEvent(
     "Burn",
     {
         "from": {"type": str, "idx": True},
-        "amount": (int, float, decimal),
+        "amount": (int, decimal),
     },
 )
 
@@ -101,7 +101,7 @@ def allowance(owner: str, spender: str):
 
 
 @export
-def transfer(amount: float, to: str):
+def transfer(amount: decimal, to: str):
     assert amount > 0, "Cannot send negative balances."
     assert balances[ctx.caller] >= amount, "Not enough coins to send."
 
@@ -112,7 +112,7 @@ def transfer(amount: float, to: str):
 
 
 @export
-def approve(amount: float, to: str):
+def approve(amount: decimal, to: str):
     assert amount >= 0, "Cannot approve negative balances."
 
     approvals[ctx.caller, to] = amount
@@ -120,7 +120,7 @@ def approve(amount: float, to: str):
 
 
 @export
-def transfer_from(amount: float, to: str, main_account: str):
+def transfer_from(amount: decimal, to: str, main_account: str):
     assert amount > 0, "Cannot send negative balances."
     assert (
         approvals[main_account, ctx.caller] >= amount
@@ -135,7 +135,7 @@ def transfer_from(amount: float, to: str, main_account: str):
 
 
 @export
-def mint(amount: float, to: str):
+def mint(amount: decimal, to: str):
     assert ctx.caller == minter.get(), "Only minter can mint tokens."
     assert amount > 0, "Cannot mint negative balances."
 
@@ -147,7 +147,7 @@ def mint(amount: float, to: str):
 
 
 @export
-def burn(amount: float):
+def burn(amount: decimal):
     assert ctx.caller == minter.get(), "Only minter can burn tokens."
     assert amount > 0, "Cannot burn negative balances."
     assert balances[ctx.caller] >= amount, "Not enough coins to burn."

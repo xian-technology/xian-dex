@@ -24,8 +24,8 @@ Mint = LogEvent(
     "Mint",
     {
 	"pair":    {'type':int, 'idx':True},
-	"amount0": {'type':(int,float,decimal)},
-	"amount1": {'type':(int,float,decimal)},
+	"amount0": {'type':(int,decimal)},
+	"amount1": {'type':(int,decimal)},
 	"to":      {'type':str, 'idx':True}
 	}
 )
@@ -34,8 +34,8 @@ Burn = LogEvent(
     "Burn",
     {
 	"pair":    {'type':int, 'idx':True},
-	"amount0": {'type':(int,float,decimal)},
-	"amount1": {'type':(int,float,decimal)},
+	"amount0": {'type':(int,decimal)},
+	"amount1": {'type':(int,decimal)},
 	"to":      {'type':str, 'idx':True}
 	}
 )
@@ -44,10 +44,10 @@ Swap = LogEvent(
     "Swap",
     {
 	"pair":       {'type':int, 'idx':True},
-	"amount0In":  {'type':(int,float,decimal)},
-	"amount1In":  {'type':(int,float,decimal)},
-	"amount0Out": {'type':(int,float,decimal)},
-	"amount1Out": {'type':(int,float,decimal)},
+	"amount0In":  {'type':(int,decimal)},
+	"amount1In":  {'type':(int,decimal)},
+	"amount0Out": {'type':(int,decimal)},
+	"amount1Out": {'type':(int,decimal)},
 	"to":         {'type':(str,int), 'idx':True}
 	}
 )
@@ -56,8 +56,8 @@ Sync = LogEvent(
     "Sync",
     {
 	"pair":      {'type':int, 'idx':True},
-	"reserve0":  {'type':(int,float,decimal)},
-	"reserve1":  {'type':(int,float,decimal)},
+	"reserve0":  {'type':(int,decimal)},
+	"reserve1":  {'type':(int,decimal)},
 	}
 )
 
@@ -155,26 +155,16 @@ def token_precision(token: str):
 	return None
 
 
-def token_scale(precision: int):
-	scale = 1
-	for step in range(0, precision):
-		scale = scale * 10
-	return scale
-
-
-def normalize_token_amount(token: str, amount: float, round_up: bool = False):
+def normalize_token_amount(token: str, amount: decimal, round_up: bool = False):
 	assert amount >= 0, "SNAKX: NEGATIVE_AMOUNT"
 	precision = token_precision(token)
 	if precision is None:
 		return amount
-	scale = token_scale(precision)
-	scaled = amount * scale
-	normalized = int(scaled)
-	if round_up and normalized < scaled:
-		normalized = normalized + 1
+	mode = "ceil" if round_up else "floor"
+	result = quantize(amount, min(precision, 30), mode)
 	if precision == 0:
-		return normalized
-	return normalized / scale
+		return int(result)
+	return result
 
 @construct
 def constructor():
@@ -274,7 +264,7 @@ def lpTokenFor(pair: int):
 	return lp_token
 
 
-def safeTransferFromPair(pair: int, token: str, to: str, value: float):
+def safeTransferFromPair(pair: int, token: str, to: str, value: decimal):
 	value = normalize_token_amount(token, value)
 	locked_assert(value >= 0 and value <= MAXIMUM_BALANCE, 'p2a Invalid value!')
 	t = load_token(token)
@@ -312,7 +302,7 @@ def safeTransferFromPair(pair: int, token: str, to: str, value: float):
 	return False
 
 
-def safeTransferFromPairToPair(pair: int, token: str, to: int, value: float):
+def safeTransferFromPairToPair(pair: int, token: str, to: int, value: decimal):
 	locked_assert(value >= 0 and value <= MAXIMUM_BALANCE, 'p2p Invalid value!')
 
 	if(token == pairs[pair, "token0"]):
@@ -384,7 +374,7 @@ def sync(pair: int):
 
 #noreentry
 @export
-def sync2(pair: int, amount0: float = 0.0, amount1: float = 0.0):
+def sync2(pair: int, amount0: decimal = 0.0, amount1: decimal = 0.0):
 	assert not LOCK.get(), "SNAKX: LOCKED"
 	assert ctx.caller == DEX_ROUTER, "SNAKX: FORBIDDEN"
 	assert amount0 >= 0 and amount1 >= 0, "SNAKX: NEGATIVE_AMOUNT"
@@ -433,8 +423,8 @@ def getReserves(pair: int):
 def getSurplus(pair: int):
 	return pairs[pair, "balance0"] - pairs[pair, "reserve0"], pairs[pair, "balance1"] - pairs[pair, "reserve1"]
 	
-#def internal_update(pair: int, balance0: float, balance1: float, UNS_reserve0: float, UNS_reserve1: float):
-def internal_update(pair: int, balance0: float, balance1: float):
+#def internal_update(pair: int, balance0: decimal, balance1: decimal, UNS_reserve0: decimal, UNS_reserve1: decimal):
+def internal_update(pair: int, balance0: decimal, balance1: decimal):
 	locked_assert(balance0 <= MAXIMUM_BALANCE and balance1 <= MAXIMUM_BALANCE, "SNAKX: BALANCE OVERFLOW")
 	pairs[pair, "reserve0"] = balance0
 	pairs[pair, "reserve1"] = balance1
@@ -442,7 +432,7 @@ def internal_update(pair: int, balance0: float, balance1: float):
 	Sync({"pair":pair,"reserve0":balance0,"reserve1":balance1})
 #emit
 
-def internal_mintFee(pair: int, reserve0: float, reserve1: float):
+def internal_mintFee(pair: int, reserve0: decimal, reserve1: decimal):
 	feeOn = feeTo.get() != False
 	epoch = fee_epoch.get()
 	if pairs[pair, "feeEpoch"] != epoch:
@@ -452,8 +442,8 @@ def internal_mintFee(pair: int, reserve0: float, reserve1: float):
 	kLast = pairs[pair, "kLast"]
 	if (feeOn):
 		if (kLast != 0):
-			rootK = (reserve0 * reserve1) ** 0.5
-			rootKLast = kLast ** 0.5
+			rootK = sqrt(reserve0 * reserve1)
+			rootKLast = sqrt(kLast)
 			if (rootK > rootKLast):
 				numerator = pairs[pair, "totalSupply"] * (rootK - rootKLast)
 				denominator = rootK * 5 + rootKLast
@@ -464,7 +454,7 @@ def internal_mintFee(pair: int, reserve0: float, reserve1: float):
 		pairs[pair, "kLast"] = 0.0
 	return feeOn
 
-def internal_burn(pair: int, src: str, value: float):
+def internal_burn(pair: int, src: str, value: decimal):
 	pairs[pair, "totalSupply"] = pairs[pair, "totalSupply"] - value
 	locked_assert(pairs[pair, "totalSupply"] >= 0, "Negative supply!")
 	locked_assert(src == ctx.this, "SNAKX: INVALID_LP_BURN_SOURCE")
@@ -475,7 +465,7 @@ def validate_fee_bps(fee_bps: int):
 	assert fee_bps == 0 or fee_bps == 30, "SNAKX: INVALID_FEE_BPS"
 
 
-def swap_impl(pair: int, amount0Out: float, amount1Out: float, to: Any, fee_bps: int, to_pair: bool):
+def swap_impl(pair: int, amount0Out: decimal, amount1Out: decimal, to: Any, fee_bps: int, to_pair: bool):
 	validate_fee_bps(fee_bps)
 	assert not LOCK.get(), "SNAKX: LOCKED"
 	assert amount0Out > 0 or amount1Out > 0, 'SNAKX: INSUFFICIENT_OUTPUT_AMOUNT'
@@ -562,7 +552,7 @@ def burn(pair: int, to: str):
 	return amount0, amount1
 
 
-def internal_mint(pair: int, to: str, value: float):
+def internal_mint(pair: int, to: str, value: decimal):
 	pairs[pair, "totalSupply"] = pairs[pair, "totalSupply"] + value
 	load_lp_token_for(pair).mint(value, to)
 
@@ -584,7 +574,7 @@ def mint(pair: int, to: str):
 	
 	liquidity = 0
 	if (totalSupply == 0):
-		liquidity = ((amount0 * amount1) ** 0.5) - MINIMUM_LIQUIDITY
+		liquidity = sqrt(amount0 * amount1) - MINIMUM_LIQUIDITY
 	else:
 		liquidity = min((amount0 * totalSupply) / reserve0, (amount1 * totalSupply) / reserve1)
 	locked_assert(liquidity > 0, 'SNAKX: INSUFFICIENT_LIQUIDITY_MINTED')
@@ -606,22 +596,22 @@ def mint(pair: int, to: str):
 			
 #noreentry
 @export
-def swap(pair: int, amount0Out: float, amount1Out: float, to: str):
+def swap(pair: int, amount0Out: decimal, amount1Out: decimal, to: str):
 	swap_impl(pair, amount0Out, amount1Out, to, 30, False)
 	
 #noreentry
 @export
-def swapToPair(pair: int, amount0Out: float, amount1Out: float, to: int):
+def swapToPair(pair: int, amount0Out: decimal, amount1Out: decimal, to: int):
 	swap_impl(pair, amount0Out, amount1Out, to, 30, True)
 
 
 @export
-def routerSwap(pair: int, amount0Out: float, amount1Out: float, to: str, fee_bps: int):
+def routerSwap(pair: int, amount0Out: decimal, amount1Out: decimal, to: str, fee_bps: int):
 	assert ctx.caller == DEX_ROUTER, "SNAKX: FORBIDDEN"
 	swap_impl(pair, amount0Out, amount1Out, to, fee_bps, False)
 
 
 @export
-def routerSwapToPair(pair: int, amount0Out: float, amount1Out: float, to: int, fee_bps: int):
+def routerSwapToPair(pair: int, amount0Out: decimal, amount1Out: decimal, to: int, fee_bps: int):
 	assert ctx.caller == DEX_ROUTER, "SNAKX: FORBIDDEN"
 	swap_impl(pair, amount0Out, amount1Out, to, fee_bps, True)
