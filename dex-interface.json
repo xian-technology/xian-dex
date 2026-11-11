@@ -29,7 +29,7 @@
       "approval_required": "The signer must grant the router or helper only the allowance needed for the operation.",
       "deadline": "Use an explicit future absolute deadline and refuse to sign after it expires.",
       "fee_on_transfer": "Use supporting routes for flagged fee-on-transfer tokens; flagged bridge tokens are unsupported.",
-      "lp_registration": "A factory owner must register a canonical LP token before creating a pair.",
+      "lp_registration": "A factory owner must register a canonical LP token before creating a pair; LP tokens and pair tokens must stay disjoint.",
       "low_level": "This is a low-level pair primitive; normal users and agents should prefer con_dex.",
       "metadata_access": "Only the configured LP-token operator may update mutable metadata.",
       "minter_only": "Only the configured con_pairs minter may mint or burn canonical LP tokens.",
@@ -46,7 +46,7 @@
       "name": "con_pairs",
       "role": "pairs",
       "path": "src/con_pairs.py",
-      "source_sha256": "4dd72f6eeab041c4b1c2bed37cdbb0c535658a23cc82b8ae4ad2591c143c9060",
+      "source_sha256": "bb334a86e7e04365aa1331406a2ac14b73b1d3a28b3cca89bdf876354c7f5c92",
       "deploy_default": true,
       "description": "Pair factory, reserve accounting, pair swaps, and LP-token binding.",
       "functions": [
@@ -212,7 +212,7 @@
       ],
       "errors": {
         "messages": [
-          "Negative supply!", "SNAKX: BAD_ORDER", "SNAKX: BALANCE OVERFLOW", "SNAKX: FORBIDDEN", "SNAKX: IDENTICAL_ADDRESSES", "SNAKX: INSUFFICIENT_INPUT_AMOUNT", "SNAKX: INSUFFICIENT_LIQUIDITY", "SNAKX: INSUFFICIENT_LIQUIDITY_BURNED", "SNAKX: INSUFFICIENT_LIQUIDITY_MINTED", "SNAKX: INSUFFICIENT_OUTPUT_AMOUNT", "SNAKX: INVALID_FEE_BPS", "SNAKX: INVALID_FEE_STATE", "SNAKX: INVALID_LP_BURN_SOURCE", "SNAKX: INVALID_LP_TOKEN", "SNAKX: INVALID_PAIR", "SNAKX: INVALID_TO", "SNAKX: INVALID_TOKEN", "SNAKX: K", "SNAKX: LOCKED", "SNAKX: LP_TOKEN_ALREADY_REGISTERED", "SNAKX: LP_TOKEN_MISMATCH", "SNAKX: LP_TOKEN_NOT_REGISTERED", "SNAKX: NEGATIVE_AMOUNT", "SNAKX: NO_LP_TOKEN", "SNAKX: PAIR_EXISTS", "SNAKX: TokenA OVERFLOW", "SNAKX: TokenB OVERFLOW", "SNAKX: token0_missing", "SNAKX: token1_missing", "p2a Invalid value!", "p2a Negative balance!", "p2a Negative pair balance0!", "p2a Negative pair balance1!", "p2a Not enough coins to send!", "p2a Wrong token!", "p2p Invalid value!", "p2p Negative balance!", "p2p No token in TO", "p2p Not enough coins to send!", "p2p Wrong token!"
+          "Negative supply!", "SNAKX: BAD_ORDER", "SNAKX: BALANCE OVERFLOW", "SNAKX: FORBIDDEN", "SNAKX: IDENTICAL_ADDRESSES", "SNAKX: INSUFFICIENT_INPUT_AMOUNT", "SNAKX: INSUFFICIENT_LIQUIDITY", "SNAKX: INSUFFICIENT_LIQUIDITY_BURNED", "SNAKX: INSUFFICIENT_LIQUIDITY_MINTED", "SNAKX: INSUFFICIENT_OUTPUT_AMOUNT", "SNAKX: INVALID_FEE_BPS", "SNAKX: INVALID_FEE_STATE", "SNAKX: INVALID_LP_BURN_SOURCE", "SNAKX: INVALID_LP_TOKEN", "SNAKX: INVALID_PAIR", "SNAKX: INVALID_TO", "SNAKX: INVALID_TOKEN", "SNAKX: K", "SNAKX: LOCKED", "SNAKX: LP_TOKEN_ALREADY_REGISTERED", "SNAKX: LP_TOKEN_AS_PAIR_TOKEN", "SNAKX: LP_TOKEN_MISMATCH", "SNAKX: LP_TOKEN_NOT_REGISTERED", "SNAKX: NEGATIVE_AMOUNT", "SNAKX: NO_LP_TOKEN", "SNAKX: PAIR_EXISTS", "SNAKX: PAIR_TOKEN_AS_LP_TOKEN", "SNAKX: TokenA OVERFLOW", "SNAKX: TokenB OVERFLOW", "SNAKX: token0_missing", "SNAKX: token1_missing", "p2a Invalid value!", "p2a Negative balance!", "p2a Negative pair balance0!", "p2a Negative pair balance1!", "p2a Not enough coins to send!", "p2a Wrong token!", "p2p Invalid value!", "p2p Negative balance!", "p2p No token in TO", "p2p Not enough coins to send!", "p2p Wrong token!"
         ],
         "unlabeled_assertions": 0
       }
@@ -221,7 +221,7 @@
       "name": "con_dex",
       "role": "router",
       "path": "src/con_dex.py",
-      "source_sha256": "a4d08313cddba639356141c2d08fe7ef92d3c5747f3a00347194110237c66eb2",
+      "source_sha256": "6d515b2a195f149dbf1eab336484d49fda652d528a51e3f6eedc70db1540dfed",
       "deploy_default": true,
       "description": "Preferred router for liquidity, quotes, and single- or multi-hop swaps.",
       "functions": [
@@ -250,7 +250,7 @@
           "returns": "tuple<decimal,decimal>", "safety": ["approval_required", "deadline", "slippage", "precision"]
         },
         {"name": "getAmountOut", "interaction": "read", "arguments": [{"name": "amountIn", "type": "decimal", "required": true}, {"name": "reserveIn", "type": "decimal", "required": true}, {"name": "reserveOut", "type": "decimal", "required": true}, {"name": "feeBps", "type": "int", "required": false, "default": {"source": "DEFAULT_TRADE_FEE_BPS"}}], "returns": "decimal", "safety": []},
-        {"name": "getAmountIn", "interaction": "read", "arguments": [{"name": "amountOut", "type": "decimal", "required": true}, {"name": "reserveIn", "type": "decimal", "required": true}, {"name": "reserveOut", "type": "decimal", "required": true}, {"name": "feeBps", "type": "int", "required": false, "default": {"source": "DEFAULT_TRADE_FEE_BPS"}}], "returns": "decimal", "safety": []},
+        {"name": "getAmountIn", "interaction": "read", "arguments": [{"name": "amountOut", "type": "decimal", "required": true}, {"name": "reserveIn", "type": "decimal", "required": true}, {"name": "reserveOut", "type": "decimal", "required": true}, {"name": "feeBps", "type": "int", "required": false, "default": {"source": "DEFAULT_TRADE_FEE_BPS"}}, {"name": "tokenIn", "type": "str", "required": false, "default": null}, {"name": "tokenOut", "type": "str", "required": false, "default": null}], "returns": "decimal", "safety": ["precision"]},
         {"name": "getAmountsOut", "interaction": "read", "arguments": [{"name": "amountIn", "type": "decimal", "required": true}, {"name": "src", "type": "str", "required": true}, {"name": "path", "type": "list", "required": true}], "returns": "list<decimal>", "safety": ["path", "precision", "signer_fee_tier"]},
         {"name": "swapExactTokenForToken", "interaction": "write", "arguments": [{"name": "amountIn", "type": "decimal", "required": true}, {"name": "amountOutMin", "type": "decimal", "required": true}, {"name": "pair", "type": "int", "required": true}, {"name": "src", "type": "str", "required": true}, {"name": "to", "type": "str", "required": true}, {"name": "deadline", "type": "datetime.datetime", "required": true}], "returns": "decimal", "safety": ["approval_required", "deadline", "slippage", "precision", "signer_fee_tier"]},
         {"name": "swapExactTokenForTokenSupportingFeeOnTransferTokens", "interaction": "write", "arguments": [{"name": "amountIn", "type": "decimal", "required": true}, {"name": "amountOutMin", "type": "decimal", "required": true}, {"name": "pair", "type": "int", "required": true}, {"name": "src", "type": "str", "required": true}, {"name": "to", "type": "str", "required": true}, {"name": "deadline", "type": "datetime.datetime", "required": true}], "returns": "decimal", "safety": ["approval_required", "deadline", "slippage", "precision", "signer_fee_tier", "fee_on_transfer"]},
@@ -261,7 +261,7 @@
         {"name": "ZeroFeeTraderUpdated", "fields": [{"name": "account", "type": "str", "indexed": true}, {"name": "enabled", "type": "bool", "indexed": false}]}
       ],
       "errors": {
-        "messages": ["SNAKX: EXPIRED", "SNAKX: FEE_TOKEN_REQUIRES_SUPPORTING_ROUTE", "SNAKX: FORBIDDEN", "SNAKX: INSUFFICIENT_AMOUNT", "SNAKX: INSUFFICIENT_A_AMOUNT", "SNAKX: INSUFFICIENT_B_AMOUNT", "SNAKX: INSUFFICIENT_INPUT_AMOUNT", "SNAKX: INSUFFICIENT_LIQUIDITY", "SNAKX: INSUFFICIENT_OUTPUT_AMOUNT", "SNAKX: INVALID_FEE_BPS", "SNAKX: INVALID_LENGTHS", "SNAKX: INVALID_PAIR", "SNAKX: INVALID_PATH", "SNAKX: INVALID_TOKEN", "SNAKX: LP_TOKEN_MISMATCH", "SNAKX: NEGATIVE_AMOUNT", "SNAKX: NO_PAIR", "SNAKX: UNSUPPORTED_INTERMEDIATE_FEE_TOKEN"],
+        "messages": ["SNAKX: AMOUNT_IN_SEARCH_EXHAUSTED", "SNAKX: EXPIRED", "SNAKX: FEE_TOKEN_REQUIRES_SUPPORTING_ROUTE", "SNAKX: FORBIDDEN", "SNAKX: INSUFFICIENT_AMOUNT", "SNAKX: INSUFFICIENT_A_AMOUNT", "SNAKX: INSUFFICIENT_B_AMOUNT", "SNAKX: INSUFFICIENT_INPUT_AMOUNT", "SNAKX: INSUFFICIENT_LIQUIDITY", "SNAKX: INSUFFICIENT_OUTPUT_AMOUNT", "SNAKX: INVALID_FEE_BPS", "SNAKX: INVALID_LENGTHS", "SNAKX: INVALID_PAIR", "SNAKX: INVALID_PATH", "SNAKX: INVALID_TOKEN", "SNAKX: LP_TOKEN_MISMATCH", "SNAKX: NEGATIVE_AMOUNT", "SNAKX: NO_PAIR", "SNAKX: UNSUPPORTED_INTERMEDIATE_FEE_TOKEN"],
         "unlabeled_assertions": 1
       }
     },
@@ -269,16 +269,16 @@
       "name": "con_dex_helper",
       "role": "helper",
       "path": "src/con_dex_helper.py",
-      "source_sha256": "659ebd9fed5a44dd2763f8bceabf151e9ba446743a0f8811576a3d9196bad199",
+      "source_sha256": "fdb173f2761f963a682a046ed3d1f472d6398af6fc81644b6d6e765c3da66ed5",
       "deploy_default": true,
       "description": "Single-pair buy and sell convenience entrypoints.",
       "functions": [
-        {"name": "buy", "interaction": "write", "arguments": [{"name": "buy_token", "type": "str", "required": true}, {"name": "sell_token", "type": "str", "required": true}, {"name": "amount", "type": "decimal", "required": true}, {"name": "slippage", "type": "decimal", "required": false, "default": 1}, {"name": "deadline", "type": "datetime.datetime", "required": false, "default": null}], "returns": "tuple<decimal,decimal>", "safety": ["approval_required", "deadline", "slippage", "signer_fee_tier", "fee_on_transfer"]},
-        {"name": "sell", "interaction": "write", "arguments": [{"name": "sell_token", "type": "str", "required": true}, {"name": "buy_token", "type": "str", "required": true}, {"name": "amount", "type": "decimal", "required": true}, {"name": "slippage", "type": "decimal", "required": false, "default": 1}, {"name": "deadline", "type": "datetime.datetime", "required": false, "default": null}], "returns": "tuple<decimal,decimal>", "safety": ["approval_required", "deadline", "slippage", "signer_fee_tier", "fee_on_transfer"]}
+        {"name": "buy", "interaction": "write", "arguments": [{"name": "buy_token", "type": "str", "required": true}, {"name": "sell_token", "type": "str", "required": true}, {"name": "amount", "type": "decimal", "required": true}, {"name": "max_input", "type": "decimal", "required": true}, {"name": "deadline", "type": "datetime.datetime", "required": true}], "returns": "tuple<decimal,decimal>", "safety": ["approval_required", "deadline", "slippage", "signer_fee_tier", "fee_on_transfer"]},
+        {"name": "sell", "interaction": "write", "arguments": [{"name": "sell_token", "type": "str", "required": true}, {"name": "buy_token", "type": "str", "required": true}, {"name": "amount", "type": "decimal", "required": true}, {"name": "min_out", "type": "decimal", "required": true}, {"name": "deadline", "type": "datetime.datetime", "required": true}], "returns": "tuple<decimal,decimal>", "safety": ["approval_required", "deadline", "slippage", "signer_fee_tier", "fee_on_transfer"]}
       ],
       "events": [],
       "errors": {
-        "messages": ["Amount must be positive", "Deadline is required", "Insufficient balance: have {user_balance}, need {input_amount}", "Pair does not exist", "Slippage must be between 0 and 100%", "Trade deadline has expired"],
+        "messages": ["Amount must be positive", "Deadline is required", "Pair does not exist", "Required input {input_amount} exceeds max_input {max_input}", "Trade deadline has expired", "max_input must be positive", "min_out must be positive"],
         "unlabeled_assertions": 0
       }
     },

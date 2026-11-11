@@ -14,7 +14,7 @@
       "name": "con_pairs",
       "role": "pairs",
       "path": "src/con_pairs.py",
-      "sha256": "4dd72f6eeab041c4b1c2bed37cdbb0c535658a23cc82b8ae4ad2591c143c9060",
+      "sha256": "bb334a86e7e04365aa1331406a2ac14b73b1d3a28b3cca89bdf876354c7f5c92",
       "deploy_order": 10,
       "default_chi": 300000
     },
@@ -22,7 +22,7 @@
       "name": "con_dex",
       "role": "router",
       "path": "src/con_dex.py",
-      "sha256": "a4d08313cddba639356141c2d08fe7ef92d3c5747f3a00347194110237c66eb2",
+      "sha256": "6d515b2a195f149dbf1eab336484d49fda652d528a51e3f6eedc70db1540dfed",
       "deploy_order": 20,
       "default_chi": 200000
     },
@@ -30,7 +30,7 @@
       "name": "con_dex_helper",
       "role": "helper",
       "path": "src/con_dex_helper.py",
-      "sha256": "659ebd9fed5a44dd2763f8bceabf151e9ba446743a0f8811576a3d9196bad199",
+      "sha256": "fdb173f2761f963a682a046ed3d1f472d6398af6fc81644b6d6e765c3da66ed5",
       "deploy_order": 30,
       "default_chi": 160000
     },

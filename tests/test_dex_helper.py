@@ -179,7 +179,7 @@ class TestDexHelper(unittest.TestCase):
                 buy_token="con_plain_out",
                 sell_token="currency",
                 amount=25,
-                slippage=5,
+                max_input=50,
                 deadline=self.expired_deadline,
                 signer=self.trader,
                 environment={"now": self.now},
@@ -190,18 +190,115 @@ class TestDexHelper(unittest.TestCase):
                 sell_token="con_plain_out",
                 buy_token="currency",
                 amount=25,
-                slippage=5,
+                min_out=1,
                 deadline=self.expired_deadline,
                 signer=self.trader,
                 environment={"now": self.now},
             )
+
+    def test_helper_requires_positive_signer_bounds(self):
+        with self.assertRaisesRegex(AssertionError, "max_input must be positive"):
+            self.helper.buy(
+                buy_token="con_plain_out",
+                sell_token="currency",
+                amount=25,
+                max_input=0,
+                deadline=self.deadline,
+                signer=self.trader,
+                environment={"now": self.now},
+            )
+
+        with self.assertRaisesRegex(AssertionError, "min_out must be positive"):
+            self.helper.sell(
+                sell_token="con_plain_out",
+                buy_token="currency",
+                amount=25,
+                min_out=0,
+                deadline=self.deadline,
+                signer=self.trader,
+                environment={"now": self.now},
+            )
+
+    def front_run_price_of_plain_out(self):
+        # Buying con_plain_out first makes it more expensive for the victim.
+        self.dex.swapExactTokenForToken(
+            amountIn=3000,
+            amountOutMin=0,
+            pair=self.pair_id,
+            src="currency",
+            to=self.market_maker,
+            deadline=self.deadline,
+            signer=self.market_maker,
+            environment={"now": self.now},
+        )
+
+    def test_helper_sell_enforces_signer_min_out_after_front_run(self):
+        currency_before = self.currency.balance_of(address=self.trader)
+        out_before = self.out.balance_of(address=self.trader)
+        self.front_run_price_of_plain_out()
+
+        with self.assertRaisesRegex(AssertionError, "INSUFFICIENT_OUTPUT_AMOUNT"):
+            self.helper.sell(
+                sell_token="currency",
+                buy_token="con_plain_out",
+                amount=100,
+                min_out=89,
+                deadline=self.deadline,
+                signer=self.trader,
+                environment={"now": self.now},
+            )
+
+        self.assertEqual(self.currency.balance_of(address=self.trader), currency_before)
+        self.assertEqual(self.out.balance_of(address=self.trader), out_before)
+
+    def test_helper_buy_enforces_signer_max_input_after_front_run(self):
+        currency_before = self.currency.balance_of(address=self.trader)
+        self.front_run_price_of_plain_out()
+
+        with self.assertRaisesRegex(AssertionError, "exceeds max_input"):
+            self.helper.buy(
+                buy_token="con_plain_out",
+                sell_token="currency",
+                amount=50,
+                max_input=60,
+                deadline=self.deadline,
+                signer=self.trader,
+                environment={"now": self.now},
+            )
+
+        self.assertEqual(self.currency.balance_of(address=self.trader), currency_before)
+
+    def test_helper_buy_spends_only_the_quoted_input(self):
+        currency_before = self.currency.balance_of(address=self.trader)
+        out_before = self.out.balance_of(address=self.trader)
+        quoted_input = self.dex.getAmountIn(
+            amountOut=50, reserveIn=1000, reserveOut=1000, feeBps=30
+        )
+
+        spent, received = self.helper.buy(
+            buy_token="con_plain_out",
+            sell_token="currency",
+            amount=50,
+            max_input=100,
+            deadline=self.deadline,
+            signer=self.trader,
+            environment={"now": self.now},
+        )
+
+        self.assertAmountEqual(spent, quoted_input)
+        self.assertLess(spent, 60)
+        self.assertEqual(currency_before - self.currency.balance_of(address=self.trader), spent)
+        self.assertEqual(self.out.balance_of(address=self.trader) - out_before, received)
+        self.assertGreaterEqual(received, 50)
+        self.assertAmountEqual(received, 50)
+        self.assertEqual(self.currency.balance_of(address="con_dex_helper"), 0)
 
     def test_helper_buy_respects_zero_fee_signer_tier(self):
         standard_quote = self.helper.buy(
             buy_token="con_plain_out",
             sell_token="currency",
             amount=50,
-            slippage=0,
+            max_input=100,
             deadline=self.deadline,
             signer=self.trader,
             environment={"now": self.now},
@@ -217,7 +314,7 @@ class TestDexHelper(unittest.TestCase):
             buy_token="con_plain_alt",
             sell_token="currency",
             amount=50,
-            slippage=0,
+            max_input=100,
             deadline=self.deadline,
             signer=self.market_maker,
             environment={"now": self.now},
@@ -231,7 +328,7 @@ class TestDexHelper(unittest.TestCase):
             sell_token="con_plain_out",
             buy_token="currency",
             amount=50,
-            slippage=0,
+            min_out=1,
             deadline=self.deadline,
             signer=self.trader,
             environment={"now": self.now},
@@ -247,7 +344,7 @@ class TestDexHelper(unittest.TestCase):
             sell_token="con_plain_alt",
             buy_token="currency",
             amount=50,
-            slippage=0,
+            min_out=1,
             deadline=self.deadline,
             signer=self.market_maker,
             environment={"now": self.now},

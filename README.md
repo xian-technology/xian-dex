@@ -229,6 +229,11 @@ sending transactions.
   accepted only when it matches that registration. The pair contract
   mints/burns that LP token directly; users transfer it with `transfer` and
   approve removals with `approve(amount, to="con_dex")`.
+- LP tokens and pair tokens are disjoint: a registered LP token cannot be a
+  token of any pair, and a token that already trades in a pair cannot be
+  registered as an LP token. `con_pairs` holds both pair reserves and LP tokens
+  awaiting `burn`, so mixing the two would let `burn` pay out another pair's
+  reserves.
 - Fee-on-transfer token flags are router-owner controlled.
 - Zero-fee signer accounts can be enabled with
   `set_zero_fee_trader(...)` for market makers or other approved flow.
@@ -245,6 +250,18 @@ sending transactions.
 - `con_dex_helper.py` requires an explicit absolute `deadline`; relative
   minute-based guards cannot provide pre-inclusion expiry because they are
   computed from on-chain `now` at execution time.
+- Helper price bounds are signed, not derived on-chain:
+  `buy(buy_token, sell_token, amount, max_input, deadline)` quotes the input
+  needed for exactly `amount` against the executing reserves, reverts when it
+  exceeds `max_input`, and pulls only that input;
+  `sell(sell_token, buy_token, amount, min_out, deadline)` reverts when the
+  recipient receives less than `min_out`. A bound computed inside the
+  transaction would follow a manipulated price and protect nothing.
+- `getAmountIn(amountOut, reserveIn, reserveOut, feeBps, tokenIn, tokenOut)`
+  is the exact inverse of the router's exact-input quote: it returns the
+  smallest input on `tokenIn`'s precision grid whose quote, floored to
+  `tokenOut`'s precision, reaches `amountOut`. Omitted tokens use the full
+  30-digit decimal grid.
 - Helper quoting is fee-tier aware, so zero-fee market-maker signers do not
   overpay when using the helper path.
 

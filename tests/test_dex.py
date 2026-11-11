@@ -523,6 +523,81 @@ class TestDexRouter(unittest.TestCase):
             "con_lp_canonical",
         )
 
+    def test_registered_lp_token_cannot_become_pair_token(self):
+        self.create_pair("con_plain_mid", "currency", "con_lp_mid_currency")
+        self.create_pair("con_plain_out", "currency", "con_zz_out_currency")
+        self.submit_lp_token(name="con_lp_nested")
+
+        # The LP token sorts first in one candidate pair and second in the other.
+        for lp_token, other in (
+            ("con_lp_mid_currency", "currency"),
+            ("con_zz_out_currency", "con_plain_mid"),
+        ):
+            with self.subTest(lp_token=lp_token):
+                with self.assertRaisesRegex(AssertionError, "SNAKX: LP_TOKEN_AS_PAIR_TOKEN"):
+                    self.pairs.registerLpToken(
+                        tokenA=lp_token,
+                        tokenB=other,
+                        lpToken="con_lp_nested",
+                        signer=self.operator,
+                    )
+
+                self.assertIsNone(
+                    self.pairs.registeredLpTokenFor(
+                        tokenA=lp_token,
+                        tokenB=other,
+                        signer=self.operator,
+                    )
+                )
+
+    def test_planned_pair_token_cannot_be_created_after_lp_registration(self):
+        self.submit_lp_token(name="con_lp_dual_use")
+        self.submit_lp_token(name="con_lp_planned")
+        self.pairs.registerLpToken(
+            tokenA="con_lp_dual_use",
+            tokenB="currency",
+            lpToken="con_lp_planned",
+            signer=self.operator,
+        )
+        self.pairs.registerLpToken(
+            tokenA="con_plain_mid",
+            tokenB="currency",
+            lpToken="con_lp_dual_use",
+            signer=self.operator,
+        )
+
+        with self.assertRaisesRegex(AssertionError, "SNAKX: LP_TOKEN_AS_PAIR_TOKEN"):
+            self.pairs.createPair(
+                tokenA="con_lp_dual_use",
+                tokenB="currency",
+                signer=self.operator,
+            )
+
+    def test_pair_token_cannot_be_registered_as_lp_token(self):
+        # One LP-shaped token trades as token0, the other as token1.
+        self.submit_lp_token(name="con_lp_traded")
+        self.create_pair("con_lp_traded", "currency")
+        self.submit_lp_token(name="con_zz_traded")
+        self.create_pair("con_plain_mid", "con_zz_traded")
+
+        for traded in ("con_lp_traded", "con_zz_traded"):
+            with self.subTest(traded=traded):
+                with self.assertRaisesRegex(AssertionError, "SNAKX: PAIR_TOKEN_AS_LP_TOKEN"):
+                    self.pairs.registerLpToken(
+                        tokenA="con_plain_out",
+                        tokenB="currency",
+                        lpToken=traded,
+                        signer=self.operator,
+                    )
+
+                self.assertIsNone(
+                    self.pairs.registeredLpTokenFor(
+                        tokenA="con_plain_out",
+                        tokenB="currency",
+                        signer=self.operator,
+                    )
+                )
+
     def test_standard_lp_transfer_and_remove_liquidity_use_token_allowance(
         self,
     ):

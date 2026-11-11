@@ -280,16 +280,84 @@ def get_amount_out_for_fee(amountIn: decimal, reserveIn: decimal, reserveOut: de
 #(x*997*y)/(z*1000+997*x) = (x*0.997*y)/(z+0.997*x)
 
 
-def get_amount_in_for_fee(amountOut: decimal, reserveIn: decimal, reserveOut: decimal, fee_bps: int):
+DECIMAL_SCALE = 10 ** 30
+FEE_DENOMINATOR = 10000
+MAX_AMOUNT_IN_SEARCH_STEPS = 256
+
+
+def to_units(value: decimal):
+	# Contract decimals carry 30 fractional digits, so this is exact.
+	return int(value * DECIMAL_SCALE)
+
+
+def from_units(units: int):
+	return decimal(str(units)) / DECIMAL_SCALE
+
+
+def ceil_div(numerator: int, denominator: int):
+	return -((-numerator) // denominator)
+
+
+def amount_unit(token: str):
+	# Smallest amount step the router keeps for token, in 1e-30 units.
+	precision = None if token is None else token_precision(token)
+	if precision is None:
+		return 1
+	return 10 ** (30 - min(precision, 30))
+
+
+def ceil_to_unit(units: int, unit: int):
+	return ceil_div(units, unit) * unit
+
+
+def input_units_for_fee_adjusted(amount_with_fee: int, fee_bps: int, unit: int):
+	# Smallest input on the token grid whose truncated fee-adjusted amount
+	# (input * (1 - fee)) reaches amount_with_fee.
+	return ceil_to_unit(
+		ceil_div(amount_with_fee * FEE_DENOMINATOR, FEE_DENOMINATOR - fee_bps), unit
+	)
+
+
+def get_amount_in_for_fee(amountOut: decimal, reserveIn: decimal, reserveOut: decimal, fee_bps: int, tokenIn: str = None, tokenOut: str = None):
 	validate_fee_bps(fee_bps)
 	assert amountOut > 0, 'SNAKX: INSUFFICIENT_OUTPUT_AMOUNT'
 	assert reserveIn > 0 and reserveOut > 0, 'SNAKX: INSUFFICIENT_LIQUIDITY'
-	assert reserveOut > amountOut, 'SNAKX: INSUFFICIENT_LIQUIDITY'
-	fee_multiplier = (10000 - fee_bps) / 10000
-	assert fee_multiplier > 0, 'SNAKX: INVALID_FEE_BPS'
-	numerator = reserveIn * amountOut
-	denominator = (reserveOut - amountOut) * fee_multiplier
-	return numerator / denominator
+	in_unit = amount_unit(tokenIn)
+	# The router floors outputs to tokenOut's grid, so it must reach this target.
+	target = ceil_to_unit(to_units(amountOut), amount_unit(tokenOut))
+	reserve_in = to_units(reserveIn)
+	reserve_out = to_units(reserveOut)
+	assert reserve_out > target, 'SNAKX: INSUFFICIENT_LIQUIDITY'
+
+	# get_amount_out_for_fee yields floor(floor(a * R_out / S) * S / (R_in + a))
+	# for fee-adjusted amount a (all in 1e-30 units, S = 1e30). It reaches the
+	# target only if a >= target * R_in / (R_out - target), and always does once
+	# a >= (target * R_in + S) / (R_out - target). Search between those bounds
+	# with the router's own quote so the result is its exact inverse.
+	low = input_units_for_fee_adjusted(
+		ceil_div(target * reserve_in, reserve_out - target), fee_bps, in_unit
+	)
+	if quote_reaches(low, reserveIn, reserveOut, fee_bps, tokenOut, amountOut):
+		return from_units(low)
+	high = input_units_for_fee_adjusted(
+		ceil_div(target * reserve_in + DECIMAL_SCALE, reserve_out - target), fee_bps, in_unit
+	)
+	for step in range(MAX_AMOUNT_IN_SEARCH_STEPS):
+		if high - low <= in_unit:
+			return from_units(high)
+		middle = low + ((high - low) // in_unit // 2) * in_unit
+		if quote_reaches(middle, reserveIn, reserveOut, fee_bps, tokenOut, amountOut):
+			high = middle
+		else:
+			low = middle
+	assert False, 'SNAKX: AMOUNT_IN_SEARCH_EXHAUSTED'
+
+
+def quote_reaches(input_units: int, reserveIn: decimal, reserveOut: decimal, fee_bps: int, tokenOut: str, amountOut: decimal):
+	quoted = get_amount_out_for_fee(from_units(input_units), reserveIn, reserveOut, fee_bps)
+	if tokenOut is not None:
+		quoted = normalize_token_amount(tokenOut, quoted)
+	return quoted >= amountOut
 
 
 @export
@@ -298,8 +366,18 @@ def getAmountOut(amountIn: decimal, reserveIn: decimal, reserveOut: decimal, fee
 
 
 @export
-def getAmountIn(amountOut: decimal, reserveIn: decimal, reserveOut: decimal, feeBps: int = DEFAULT_TRADE_FEE_BPS):
-	return get_amount_in_for_fee(amountOut, reserveIn, reserveOut, feeBps)
+def getAmountIn(
+	amountOut: decimal,
+	reserveIn: decimal,
+	reserveOut: decimal,
+	feeBps: int = DEFAULT_TRADE_FEE_BPS,
+	tokenIn: str = None,
+	tokenOut: str = None
+):
+	# Minimal input (on tokenIn's precision grid) whose exact-input quote, floored
+	# to tokenOut's precision, is at least amountOut. Omitted tokens use the full
+	# 30-digit decimal grid.
+	return get_amount_in_for_fee(amountOut, reserveIn, reserveOut, feeBps, tokenIn, tokenOut)
 
 
 def get_amounts_out_for_fee(amountIn: decimal, src: str, path: list, fee_bps: int):

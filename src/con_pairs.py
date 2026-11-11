@@ -65,6 +65,7 @@ toks_to_pair = Hash(default_value=None)
 pairs = Hash(default_value=0)
 registered_lp_tokens = Hash(default_value=None)
 registered_lp_token_pairs = Hash(default_value=None)
+pair_tokens = Hash(default_value=False)
 pairs_num = Variable()
 feeTo = Variable()
 fee_epoch = Variable()
@@ -128,6 +129,10 @@ def pair_exists(pair: int):
 def assert_pair_tokens(tokenA: str, tokenB: str):
 	assert tokenA != tokenB, 'SNAKX: IDENTICAL_ADDRESSES'
 	assert tokenA < tokenB, 'SNAKX: BAD_ORDER'
+	# Pair reserves and LP inventory share con_pairs' balance; burn() treats
+	# every held LP token as burnable, so an LP token must never be a reserve.
+	assert registered_lp_token_pairs[tokenA] == None, 'SNAKX: LP_TOKEN_AS_PAIR_TOKEN'
+	assert registered_lp_token_pairs[tokenB] == None, 'SNAKX: LP_TOKEN_AS_PAIR_TOKEN'
 	assert_token_contract(tokenA)
 	assert_token_contract(tokenB)
 
@@ -200,6 +205,7 @@ def registerLpToken(tokenA: str, tokenB: str, lpToken: str):
 	assert registered_lp_tokens[tokenA, tokenB] == None, "SNAKX: LP_TOKEN_ALREADY_REGISTERED"
 	assert registered_lp_token_pairs[lpToken] == None, "SNAKX: LP_TOKEN_ALREADY_REGISTERED"
 	assert lpToken != tokenA and lpToken != tokenB, "SNAKX: INVALID_LP_TOKEN"
+	assert not pair_tokens[lpToken], "SNAKX: PAIR_TOKEN_AS_LP_TOKEN"
 	assert_lp_token_contract(lpToken)
 	registered_lp_tokens[tokenA, tokenB] = lpToken
 	registered_lp_token_pairs[lpToken] = True
@@ -246,6 +252,8 @@ def createPair(tokenA: str, tokenB: str, lpToken: str = None):
 	pairs[p_num, "creationTime"] = now
 	
 	toks_to_pair[tokenA,tokenB] = p_num
+	pair_tokens[tokenA] = True
+	pair_tokens[tokenB] = True
 	
 	PairCreated({"token0": tokenA, "token1": tokenB, "pair": p_num})
 	return p_num

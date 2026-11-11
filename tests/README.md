@@ -20,7 +20,9 @@ Current coverage:
 - fee-on-transfer token flag permissions and toggling
 - zero-fee trader permissions, toggling, and better quote/execution outcomes
 - plain-route rejection for flagged fee-on-transfer tokens
-- helper absolute-deadline enforcement
+- helper absolute-deadline enforcement and signer-supplied price bounds
+- `getAmountIn` as the exact, minimal inverse of the router quote across
+  random reserves, fee tiers and token precisions
 - helper quote behavior for zero-fee trader accounts
 - machine-readable interface drift against the bundle and exported contract API
 
