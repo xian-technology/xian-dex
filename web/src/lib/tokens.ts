@@ -1,6 +1,7 @@
 import { getClient } from "./xian";
+import { chainAmount } from "./amounts";
 import { STORAGE_KEYS } from "./constants";
-import { isValidContractName, toNumber } from "./format";
+import { isValidContractName } from "./format";
 import { registryContracts, registryOverride } from "./tokenRegistry";
 
 export interface TokenInfo {
@@ -12,7 +13,7 @@ export interface TokenInfo {
   precision: number | null;
 }
 
-const memoryCache = new Map<string, TokenInfo>();
+const memoryCache = new Map<string, Promise<TokenInfo>>();
 const RECENT_LIMIT = 8;
 
 function readArray(key: string): string[] {
@@ -93,19 +94,31 @@ export function forgetToken(contract: string): void {
 export async function getTokenInfo(contract: string): Promise<TokenInfo> {
   const cached = memoryCache.get(contract);
   if (cached) return cached;
+  const pending = readTokenInfo(contract);
+  memoryCache.set(contract, pending);
+  try {
+    return await pending;
+  } catch (error) {
+    if (memoryCache.get(contract) === pending) memoryCache.delete(contract);
+    throw error;
+  }
+}
+
+async function readTokenInfo(contract: string): Promise<TokenInfo> {
   const override = registryOverride(contract);
   const client = getClient();
   const meta = await client.getTokenMetadata(contract).catch(() => null);
-  const precisionRaw = await client
-    .getState(contract, "metadata", ["precision"])
-    .catch(() => null);
-  const precision =
-    precisionRaw == null
-      ? null
-      : Number.isInteger(Number(precisionRaw))
-        ? Number(precisionRaw)
-        : null;
-  const info: TokenInfo = {
+  // The router reads get_metadata(), which can compute precision dynamically.
+  const methods = await client.getContractMethods(contract);
+  const metadata = methods.some((method) => method.name === "get_metadata")
+    ? await client.call({ sender: "0".repeat(64), contract, function: "get_metadata", kwargs: {} })
+    : null;
+  const precisionRaw = metadata && typeof metadata === "object" && "precision" in metadata
+    ? metadata.precision : null;
+  const integerPrecision = typeof precisionRaw === "bigint" || Number.isSafeInteger(precisionRaw);
+  const precision = integerPrecision && Number(precisionRaw) >= 0
+    ? Math.min(30, Number(precisionRaw)) : null;
+  return {
     contract,
     name: override?.name ?? (meta?.name ?? contract),
     symbol:
@@ -115,17 +128,15 @@ export async function getTokenInfo(contract: string): Promise<TokenInfo> {
     logoSvg: meta?.logoSvg ?? null,
     precision
   };
-  memoryCache.set(contract, info);
-  return info;
 }
 
-export async function getBalance(contract: string, address: string): Promise<number> {
+export async function getBalance(contract: string, address: string): Promise<string> {
   const client = getClient();
   try {
     const value = await client.getBalance(address, { contract });
-    return toNumber(value);
+    return chainAmount(value);
   } catch {
-    return 0;
+    return "0";
   }
 }
 
@@ -133,13 +144,13 @@ export async function getAllowance(
   contract: string,
   owner: string,
   spender: string
-): Promise<number> {
+): Promise<string> {
   const client = getClient();
   try {
     const value = await client.getState(contract, "approvals", [owner, spender]);
-    return toNumber(value);
+    return chainAmount(value);
   } catch {
-    return 0;
+    return "0";
   }
 }
 

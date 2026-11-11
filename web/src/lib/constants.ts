@@ -20,4 +20,4 @@ export const NATIVE_TOKEN = "currency";
 
 // Mirrors con_pairs.MAXIMUM_BALANCE; using this as an "approve once" amount
 // covers any plausible trade size while staying inside the contract's bounds.
-export const INFINITE_APPROVAL_AMOUNT = 1e14;
+export const INFINITE_APPROVAL_AMOUNT = "100000000000000";

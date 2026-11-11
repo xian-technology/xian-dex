@@ -21,19 +21,19 @@ def seed():
     balances[ctx.caller] = 100000000
 
 @export
-def transfer(amount: float, to: str):
+def transfer(amount: decimal, to: str):
     assert amount > 0
     assert balances[ctx.caller] >= amount
     balances[ctx.caller] -= amount
     balances[to] += amount
 
 @export
-def approve(amount: float, to: str):
+def approve(amount: decimal, to: str):
     assert amount >= 0
     approved[ctx.caller, to] = amount
 
 @export
-def transfer_from(amount: float, to: str, main_account: str):
+def transfer_from(amount: decimal, to: str, main_account: str):
     assert amount > 0
     assert approved[main_account, ctx.caller] >= amount
     assert balances[main_account] >= amount
@@ -51,6 +51,7 @@ class TestDexHelper(unittest.TestCase):
     def setUp(self):
         self._storage_home = tempfile.TemporaryDirectory()
         self.client = ContractingClient(
+            vm_profile="xian_vm_v2",
             storage_home=Path(self._storage_home.name)
         )
         self.client.flush()

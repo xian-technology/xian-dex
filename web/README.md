@@ -10,9 +10,12 @@ Vite + React 19 + TypeScript, no Tailwind).
 - **Vite 8** + **React 19** + **TypeScript** strict mode
 - **`@xian-tech/client`** for ABCI reads, simulation, token metadata, and
   balances
-- **`@xian-tech/dex`** through its canonical Xian DEX v1 adapter for
+- **`@xian-tech/dex`** through its Xian VM v2 adapter for
   deterministic exact-in route quotes, price impact, slippage/deadline, and
-  approval/swap call planning
+  approval/swap call planning. Swaps and liquidity operations carry decimal
+  text from entry to wallet signing. The quote uses each token's exported
+  precision, and the swap review shows the exact input and minimum output.
+  Limited approvals cover the requested amount.
 - **`@xian-tech/provider`** types — wallet writes go through the injected
   `window.xian.provider` (`xian_sendCall`, `xian_requestAccounts`, etc.)
 - **react-router-dom 7** for routing

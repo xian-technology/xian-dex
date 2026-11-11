@@ -103,9 +103,9 @@ export default function PairDetail() {
     );
   }
 
-  const price01 = pair.reserve0 > 0 ? pair.reserve1 / pair.reserve0 : 0;
-  const price10 = pair.reserve1 > 0 ? pair.reserve0 / pair.reserve1 : 0;
-  const share = pair.totalSupply > 0 ? (lp / pair.totalSupply) * 100 : 0;
+  const price01 = Number(pair.reserve0) > 0 ? Number(pair.reserve1) / Number(pair.reserve0) : 0;
+  const price10 = Number(pair.reserve1) > 0 ? Number(pair.reserve0) / Number(pair.reserve1) : 0;
+  const share = Number(pair.totalSupply) > 0 ? (lp / Number(pair.totalSupply)) * 100 : 0;
 
   const baseToken = inverted ? token1 : token0;
   const quoteToken = inverted ? token0 : token1;
@@ -216,7 +216,7 @@ export default function PairDetail() {
             </div>
             <div className="kv">
               <span className="muted">k = x · y</span>
-              <strong>{formatCompact(pair.reserve0 * pair.reserve1)}</strong>
+              <strong>{formatCompact(Number(pair.reserve0) * Number(pair.reserve1))}</strong>
             </div>
           </div>
         </div>
@@ -259,13 +259,13 @@ export default function PairDetail() {
                 <div className="kv">
                   <span className="muted">{token0.symbol} equivalent</span>
                   <strong>
-                    {formatNumber(pair.totalSupply > 0 ? (lp / pair.totalSupply) * pair.reserve0 : 0)}
+                    {formatNumber(Number(pair.totalSupply) > 0 ? (lp / Number(pair.totalSupply)) * Number(pair.reserve0) : 0)}
                   </strong>
                 </div>
                 <div className="kv">
                   <span className="muted">{token1.symbol} equivalent</span>
                   <strong>
-                    {formatNumber(pair.totalSupply > 0 ? (lp / pair.totalSupply) * pair.reserve1 : 0)}
+                    {formatNumber(Number(pair.totalSupply) > 0 ? (lp / Number(pair.totalSupply)) * Number(pair.reserve1) : 0)}
                   </strong>
                 </div>
                 <Link

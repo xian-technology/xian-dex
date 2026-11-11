@@ -38,7 +38,7 @@ function read(): Settings {
     const dl = dlRaw == null || dlRaw === "" ? NaN : Number(dlRaw);
     const infRaw = localStorage.getItem(STORAGE_KEYS.infiniteApproval);
     return {
-      slippageBps: Number.isFinite(slip) && slip >= 0 ? slip : DEFAULT_SETTINGS.slippageBps,
+      slippageBps: Number.isInteger(slip) && slip >= 0 && slip <= 5000 ? slip : DEFAULT_SETTINGS.slippageBps,
       deadlineMin: Number.isFinite(dl) && dl > 0 ? dl : DEFAULT_SETTINGS.deadlineMin,
       infiniteApproval: infRaw === "true"
     };

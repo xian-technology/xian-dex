@@ -1,13 +1,13 @@
 import {
   DEFAULT_MAX_HOPS,
   deadlineFromNow,
-  planXianDexV1ExactInSwap,
-  planXianDexV1TokenApproval,
-  selectBestXianDexV1ExactInRoute,
-  xianFixed,
-  type XianDexV1ExactInQuote,
-  type XianDexV1Pair,
-  type XianDexV1SwapPlanRequest,
+  planXianDexV2ExactInSwap,
+  planXianDexV2TokenApproval,
+  selectBestXianDexV2ExactInRoute,
+  fixedUnits,
+  type XianDexV2ExactInQuote,
+  type XianDexV2Pair,
+  type XianDexV2SwapPlanRequest,
   type XianDatetime
 } from "@xian-tech/dex";
 import { getClient } from "./xian";
@@ -18,10 +18,13 @@ import {
   DEFAULT_FEE_BPS,
   ZERO_FEE_BPS
 } from "./constants";
-import { toDecimalInput, toNumber } from "./format";
+import { fixed } from "@xian-tech/client";
+import { chainAmount } from "./amounts";
+import { getTokenInfo } from "./tokens";
+import { toNumber } from "./format";
 
-export interface PairInfo extends XianDexV1Pair {
-  totalSupply: number;
+export interface PairInfo extends XianDexV2Pair {
+  totalSupply: string;
   blockTimestampLast: string | null;
   creationTime: string | null;
 }
@@ -54,13 +57,16 @@ export async function getPair(id: number): Promise<PairInfo | null> {
       client.getState(DEX_PAIRS, "pairs", [String(id), "creationTime"])
     ]);
   if (token0 == null || token1 == null) return null;
+  const [info0, info1] = await Promise.all([getTokenInfo(String(token0)), getTokenInfo(String(token1))]);
   return {
     id,
+    precision0: info0.precision,
+    precision1: info1.precision,
     token0: String(token0),
     token1: String(token1),
-    reserve0: toNumber(reserve0),
-    reserve1: toNumber(reserve1),
-    totalSupply: toNumber(totalSupply),
+    reserve0: chainAmount(reserve0),
+    reserve1: chainAmount(reserve1),
+    totalSupply: chainAmount(totalSupply),
     blockTimestampLast: blockTimestampLast == null ? null : String(blockTimestampLast),
     creationTime: creationTime == null ? null : String(creationTime)
   };
@@ -101,13 +107,11 @@ export async function getLpBalanceSnapshot(
   const lpToken = await getLpTokenName(pairId);
   if (!lpToken) return { lpToken: null, value: 0, input: "0" };
   const v = await getClient().getState(lpToken, "balances", [address]);
-  const decimalSource = typeof v === "number" || typeof v === "string" || typeof v === "bigint"
-    ? v
-    : toNumber(v);
+  const input = chainAmount(v);
   return {
     lpToken,
-    value: toNumber(v),
-    input: toDecimalInput(decimalSource, 8)
+    value: Number(input),
+    input
   };
 }
 
@@ -115,11 +119,11 @@ export async function getLpAllowance(
   pairId: number,
   owner: string,
   spender: string
-): Promise<number> {
+): Promise<string> {
   const lpToken = await getLpTokenName(pairId);
-  if (!lpToken) return 0;
+  if (!lpToken) return "0";
   const v = await getClient().getState(lpToken, "approvals", [owner, spender]);
-  return toNumber(v);
+  return chainAmount(v);
 }
 
 export async function getTradeFeeBps(account: string): Promise<number> {
@@ -146,7 +150,7 @@ export async function isFeeOnTransfer(token: string): Promise<boolean> {
 
 // ── Quoting ────────────────────────────────────────────────────
 
-export type QuoteResult = XianDexV1ExactInQuote;
+export type QuoteResult = XianDexV2ExactInQuote;
 
 export async function findDirectRoute(
   fromToken: string,
@@ -180,12 +184,12 @@ export function invalidatePairCache(): void {
 export async function quoteSwap(
   fromToken: string,
   toToken: string,
-  amountIn: number,
+  amountIn: string,
   feeBps: number
 ): Promise<QuoteResult | null> {
-  if (amountIn <= 0) return null;
+  if (fixedUnits(amountIn) <= 0n) return null;
   const pairs = await getPairsCached();
-  return selectBestXianDexV1ExactInRoute({
+  return selectBestXianDexV2ExactInRoute({
     pairs,
     fromToken,
     toToken,
@@ -203,9 +207,9 @@ export type { XianDatetime };
 export async function approveToken(
   token: string,
   spender: string,
-  amount: number
+  amount: string
 ): Promise<unknown> {
-  return sendCall(planXianDexV1TokenApproval({ token, spender, amount }));
+  return sendCall(planXianDexV2TokenApproval({ token, spender, amount }));
 }
 
 export interface ChiEstimate {
@@ -235,17 +239,17 @@ export async function estimateChiFor(
   }
 }
 
-export async function swap(args: XianDexV1SwapPlanRequest): Promise<unknown> {
-  return sendCall(planXianDexV1ExactInSwap({ ...args, routerContract: DEX_ROUTER }).call);
+export async function swap(args: XianDexV2SwapPlanRequest): Promise<unknown> {
+  return sendCall(planXianDexV2ExactInSwap({ ...args, routerContract: DEX_ROUTER }).call);
 }
 
 export interface AddLiquidityArgs {
   tokenA: string;
   tokenB: string;
-  amountADesired: number;
-  amountBDesired: number;
-  amountAMin: number;
-  amountBMin: number;
+  amountADesired: string;
+  amountBDesired: string;
+  amountAMin: string;
+  amountBMin: string;
   to: string;
   deadline: XianDatetime;
 }
@@ -257,10 +261,10 @@ export async function addLiquidity(args: AddLiquidityArgs): Promise<unknown> {
     kwargs: {
       tokenA: args.tokenA,
       tokenB: args.tokenB,
-      amountADesired: xianFixed(args.amountADesired),
-      amountBDesired: xianFixed(args.amountBDesired),
-      amountAMin: xianFixed(args.amountAMin),
-      amountBMin: xianFixed(args.amountBMin),
+      amountADesired: fixed(args.amountADesired),
+      amountBDesired: fixed(args.amountBDesired),
+      amountAMin: fixed(args.amountAMin),
+      amountBMin: fixed(args.amountBMin),
       to: args.to,
       deadline: args.deadline
     }
@@ -270,9 +274,9 @@ export async function addLiquidity(args: AddLiquidityArgs): Promise<unknown> {
 export interface RemoveLiquidityArgs {
   tokenA: string;
   tokenB: string;
-  liquidity: number;
-  amountAMin: number;
-  amountBMin: number;
+  liquidity: string;
+  amountAMin: string;
+  amountBMin: string;
   to: string;
   deadline: XianDatetime;
 }
@@ -284,9 +288,9 @@ export async function removeLiquidity(args: RemoveLiquidityArgs): Promise<unknow
     kwargs: {
       tokenA: args.tokenA,
       tokenB: args.tokenB,
-      liquidity: xianFixed(args.liquidity),
-      amountAMin: xianFixed(args.amountAMin),
-      amountBMin: xianFixed(args.amountBMin),
+      liquidity: fixed(args.liquidity),
+      amountAMin: fixed(args.amountAMin),
+      amountBMin: fixed(args.amountBMin),
       to: args.to,
       deadline: args.deadline
     }
@@ -296,11 +300,11 @@ export async function removeLiquidity(args: RemoveLiquidityArgs): Promise<unknow
 export async function approveLp(
   pairId: number,
   spender: string,
-  amount: number
+  amount: string
 ): Promise<unknown> {
   const lpToken = await getLpTokenName(pairId);
   if (!lpToken) {
     throw new Error(`No LP token bound to pair ${pairId}`);
   }
-  return sendCall(planXianDexV1TokenApproval({ token: lpToken, spender, amount }));
+  return sendCall(planXianDexV2TokenApproval({ token: lpToken, spender, amount }));
 }

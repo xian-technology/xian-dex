@@ -3,18 +3,18 @@
   "schema_version": 1,
   "name": "xian-dex",
   "display_name": "Xian DEX",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Canonical Xian AMM contracts owned by xian-dex.",
   "source": {
     "repo": "https://github.com/xian-technology/xian-dex",
-    "commit": "2e714e48207b180edb211d12247903520794e5dc"
+    "commit": "e86c801f6d13521381d728e7343a8e21463e8e61"
   },
   "contracts": [
     {
       "name": "con_pairs",
       "role": "pairs",
       "path": "src/con_pairs.py",
-      "sha256": "cfba9878ed486f1dd02c140130a4cb20f13116f3bdedd537c22218de78a6d58e",
+      "sha256": "4dd72f6eeab041c4b1c2bed37cdbb0c535658a23cc82b8ae4ad2591c143c9060",
       "deploy_order": 10,
       "default_chi": 300000
     },
@@ -22,7 +22,7 @@
       "name": "con_dex",
       "role": "router",
       "path": "src/con_dex.py",
-      "sha256": "9efb8cd1859196985d7a1f59a082fe9aa5e396c1590fd610bb39b2de1f05532f",
+      "sha256": "b990fd5471b391141eace0ca5f6d929ff40a536cd88431021690851770fe6025",
       "deploy_order": 20,
       "default_chi": 200000
     },
@@ -30,7 +30,7 @@
       "name": "con_dex_helper",
       "role": "helper",
       "path": "src/con_dex_helper.py",
-      "sha256": "0b7242bc2af032478138c4e58b5f2292fe4b0e970b8bc69eb6c4b0b3d7b98413",
+      "sha256": "659ebd9fed5a44dd2763f8bceabf151e9ba446743a0f8811576a3d9196bad199",
       "deploy_order": 30,
       "default_chi": 160000
     },
@@ -38,7 +38,7 @@
       "name": "con_lp_token",
       "role": "lp_token_template",
       "path": "src/con_lp_token.py",
-      "sha256": "94055195c759edc945783d964123149efd5153dcdce613e7a8399735ee7b4506",
+      "sha256": "870de6a574261261f4e1ed18949880857c76b8f46fd3263795d55c999c86d0e3",
       "deploy_order": 100,
       "default_chi": 160000,
       "deploy_default": false

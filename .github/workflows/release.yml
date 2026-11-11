@@ -17,11 +17,11 @@ jobs:
         with:
           path: xian-dex
 
-      - name: Check out released xian-js
+      - name: Check out pinned xian-js
         uses: actions/checkout@v7
         with:
           repository: ${{ github.repository_owner }}/xian-js
-          ref: v0.3.0
+          ref: 39812da81a19a8d58584ea0f544c13d57c98b6e7
           path: xian-js
 
       - name: Check out pinned xian-stack

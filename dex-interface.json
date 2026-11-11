@@ -2,17 +2,17 @@
   "schema": "xian.dex_interface.v1",
   "schema_version": 1,
   "name": "xian-dex",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Agent-oriented interface for the canonical Xian DEX contracts.",
   "bundle": {
     "path": "contract-bundle.json",
     "schema": "xian.contract_bundle.v1",
     "name": "xian-dex",
-    "version": "0.1.0"
+    "version": "0.2.0"
   },
   "type_system": {
     "source": "Xian Contracting Python annotations",
-    "amount": "float values may execute as deterministic decimal values; honor token metadata precision",
+    "amount": "Exact decimal amounts use the token metadata precision for settlement",
     "datetime.datetime": "absolute on-chain deadline",
     "list": "ordered pair-id route when used as path",
     "Any": "contract-defined JSON-compatible value"
@@ -46,7 +46,7 @@
       "name": "con_pairs",
       "role": "pairs",
       "path": "src/con_pairs.py",
-      "source_sha256": "cfba9878ed486f1dd02c140130a4cb20f13116f3bdedd537c22218de78a6d58e",
+      "source_sha256": "4dd72f6eeab041c4b1c2bed37cdbb0c535658a23cc82b8ae4ad2591c143c9060",
       "deploy_default": true,
       "description": "Pair factory, reserve accounting, pair swaps, and LP-token binding.",
       "functions": [
@@ -111,8 +111,8 @@
           "interaction": "write",
           "arguments": [
             {"name": "pair", "type": "int", "required": true},
-            {"name": "amount0", "type": "float", "required": false, "default": 0.0},
-            {"name": "amount1", "type": "float", "required": false, "default": 0.0}
+            {"name": "amount0", "type": "decimal", "required": false, "default": 0.0},
+            {"name": "amount1", "type": "decimal", "required": false, "default": 0.0}
           ],
           "returns": "null",
           "safety": ["router_only", "low_level"]
@@ -121,14 +121,14 @@
           "name": "getReserves",
           "interaction": "read",
           "arguments": [{"name": "pair", "type": "int", "required": true}],
-          "returns": "tuple<float,float,datetime.datetime>",
+          "returns": "tuple<decimal,decimal,datetime.datetime>",
           "safety": []
         },
         {
           "name": "getSurplus",
           "interaction": "read",
           "arguments": [{"name": "pair", "type": "int", "required": true}],
-          "returns": "tuple<float,float>",
+          "returns": "tuple<decimal,decimal>",
           "safety": ["low_level"]
         },
         {
@@ -138,7 +138,7 @@
             {"name": "pair", "type": "int", "required": true},
             {"name": "to", "type": "str", "required": true}
           ],
-          "returns": "tuple<float,float>",
+          "returns": "tuple<decimal,decimal>",
           "safety": ["low_level"]
         },
         {
@@ -148,7 +148,7 @@
             {"name": "pair", "type": "int", "required": true},
             {"name": "to", "type": "str", "required": true}
           ],
-          "returns": "float",
+          "returns": "decimal",
           "safety": ["low_level"]
         },
         {
@@ -156,8 +156,8 @@
           "interaction": "write",
           "arguments": [
             {"name": "pair", "type": "int", "required": true},
-            {"name": "amount0Out", "type": "float", "required": true},
-            {"name": "amount1Out", "type": "float", "required": true},
+            {"name": "amount0Out", "type": "decimal", "required": true},
+            {"name": "amount1Out", "type": "decimal", "required": true},
             {"name": "to", "type": "str", "required": true}
           ],
           "returns": "null",
@@ -168,8 +168,8 @@
           "interaction": "write",
           "arguments": [
             {"name": "pair", "type": "int", "required": true},
-            {"name": "amount0Out", "type": "float", "required": true},
-            {"name": "amount1Out", "type": "float", "required": true},
+            {"name": "amount0Out", "type": "decimal", "required": true},
+            {"name": "amount1Out", "type": "decimal", "required": true},
             {"name": "to", "type": "int", "required": true}
           ],
           "returns": "null",
@@ -180,8 +180,8 @@
           "interaction": "write",
           "arguments": [
             {"name": "pair", "type": "int", "required": true},
-            {"name": "amount0Out", "type": "float", "required": true},
-            {"name": "amount1Out", "type": "float", "required": true},
+            {"name": "amount0Out", "type": "decimal", "required": true},
+            {"name": "amount1Out", "type": "decimal", "required": true},
             {"name": "to", "type": "str", "required": true},
             {"name": "fee_bps", "type": "int", "required": true}
           ],
@@ -193,8 +193,8 @@
           "interaction": "write",
           "arguments": [
             {"name": "pair", "type": "int", "required": true},
-            {"name": "amount0Out", "type": "float", "required": true},
-            {"name": "amount1Out", "type": "float", "required": true},
+            {"name": "amount0Out", "type": "decimal", "required": true},
+            {"name": "amount1Out", "type": "decimal", "required": true},
             {"name": "to", "type": "int", "required": true},
             {"name": "fee_bps", "type": "int", "required": true}
           ],
@@ -205,10 +205,10 @@
       "events": [
         {"name": "PairCreated", "fields": [{"name": "token0", "type": "str", "indexed": true}, {"name": "token1", "type": "str", "indexed": true}, {"name": "pair", "type": "int", "indexed": false}]},
         {"name": "LpTokenRegistered", "fields": [{"name": "token0", "type": "str", "indexed": true}, {"name": "token1", "type": "str", "indexed": true}, {"name": "lpToken", "type": "str", "indexed": false}]},
-        {"name": "Mint", "fields": [{"name": "pair", "type": "int", "indexed": true}, {"name": "amount0", "type": "int|float|decimal", "indexed": false}, {"name": "amount1", "type": "int|float|decimal", "indexed": false}, {"name": "to", "type": "str", "indexed": true}]},
-        {"name": "Burn", "fields": [{"name": "pair", "type": "int", "indexed": true}, {"name": "amount0", "type": "int|float|decimal", "indexed": false}, {"name": "amount1", "type": "int|float|decimal", "indexed": false}, {"name": "to", "type": "str", "indexed": true}]},
-        {"name": "Swap", "fields": [{"name": "pair", "type": "int", "indexed": true}, {"name": "amount0In", "type": "int|float|decimal", "indexed": false}, {"name": "amount1In", "type": "int|float|decimal", "indexed": false}, {"name": "amount0Out", "type": "int|float|decimal", "indexed": false}, {"name": "amount1Out", "type": "int|float|decimal", "indexed": false}, {"name": "to", "type": "str|int", "indexed": true}]},
-        {"name": "Sync", "fields": [{"name": "pair", "type": "int", "indexed": true}, {"name": "reserve0", "type": "int|float|decimal", "indexed": false}, {"name": "reserve1", "type": "int|float|decimal", "indexed": false}]}
+        {"name": "Mint", "fields": [{"name": "pair", "type": "int", "indexed": true}, {"name": "amount0", "type": "int|decimal", "indexed": false}, {"name": "amount1", "type": "int|decimal", "indexed": false}, {"name": "to", "type": "str", "indexed": true}]},
+        {"name": "Burn", "fields": [{"name": "pair", "type": "int", "indexed": true}, {"name": "amount0", "type": "int|decimal", "indexed": false}, {"name": "amount1", "type": "int|decimal", "indexed": false}, {"name": "to", "type": "str", "indexed": true}]},
+        {"name": "Swap", "fields": [{"name": "pair", "type": "int", "indexed": true}, {"name": "amount0In", "type": "int|decimal", "indexed": false}, {"name": "amount1In", "type": "int|decimal", "indexed": false}, {"name": "amount0Out", "type": "int|decimal", "indexed": false}, {"name": "amount1Out", "type": "int|decimal", "indexed": false}, {"name": "to", "type": "str|int", "indexed": true}]},
+        {"name": "Sync", "fields": [{"name": "pair", "type": "int", "indexed": true}, {"name": "reserve0", "type": "int|decimal", "indexed": false}, {"name": "reserve1", "type": "int|decimal", "indexed": false}]}
       ],
       "errors": {
         "messages": [
@@ -221,7 +221,7 @@
       "name": "con_dex",
       "role": "router",
       "path": "src/con_dex.py",
-      "source_sha256": "9efb8cd1859196985d7a1f59a082fe9aa5e396c1590fd610bb39b2de1f05532f",
+      "source_sha256": "b990fd5471b391141eace0ca5f6d929ff40a536cd88431021690851770fe6025",
       "deploy_default": true,
       "description": "Preferred router for liquidity, quotes, and single- or multi-hop swaps.",
       "functions": [
@@ -232,30 +232,30 @@
           "name": "addLiquidity", "interaction": "write",
           "arguments": [
             {"name": "tokenA", "type": "str", "required": true}, {"name": "tokenB", "type": "str", "required": true},
-            {"name": "amountADesired", "type": "float", "required": true}, {"name": "amountBDesired", "type": "float", "required": true},
-            {"name": "amountAMin", "type": "float", "required": true}, {"name": "amountBMin", "type": "float", "required": true},
+            {"name": "amountADesired", "type": "decimal", "required": true}, {"name": "amountBDesired", "type": "decimal", "required": true},
+            {"name": "amountAMin", "type": "decimal", "required": true}, {"name": "amountBMin", "type": "decimal", "required": true},
             {"name": "to", "type": "str", "required": true}, {"name": "deadline", "type": "datetime.datetime", "required": true},
             {"name": "lpToken", "type": "str", "required": false, "default": null}
           ],
-          "returns": "tuple<float,float,float>", "safety": ["approval_required", "deadline", "slippage", "precision", "lp_registration"]
+          "returns": "tuple<decimal,decimal,decimal>", "safety": ["approval_required", "deadline", "slippage", "precision", "lp_registration"]
         },
         {
           "name": "removeLiquidity", "interaction": "write",
           "arguments": [
             {"name": "tokenA", "type": "str", "required": true}, {"name": "tokenB", "type": "str", "required": true},
-            {"name": "liquidity", "type": "float", "required": true}, {"name": "amountAMin", "type": "float", "required": true},
-            {"name": "amountBMin", "type": "float", "required": true}, {"name": "to", "type": "str", "required": true},
+            {"name": "liquidity", "type": "decimal", "required": true}, {"name": "amountAMin", "type": "decimal", "required": true},
+            {"name": "amountBMin", "type": "decimal", "required": true}, {"name": "to", "type": "str", "required": true},
             {"name": "deadline", "type": "datetime.datetime", "required": true}
           ],
-          "returns": "tuple<float,float>", "safety": ["approval_required", "deadline", "slippage", "precision"]
+          "returns": "tuple<decimal,decimal>", "safety": ["approval_required", "deadline", "slippage", "precision"]
         },
-        {"name": "getAmountOut", "interaction": "read", "arguments": [{"name": "amountIn", "type": "float", "required": true}, {"name": "reserveIn", "type": "float", "required": true}, {"name": "reserveOut", "type": "float", "required": true}, {"name": "feeBps", "type": "int", "required": false, "default": {"source": "DEFAULT_TRADE_FEE_BPS"}}], "returns": "float", "safety": []},
-        {"name": "getAmountIn", "interaction": "read", "arguments": [{"name": "amountOut", "type": "float", "required": true}, {"name": "reserveIn", "type": "float", "required": true}, {"name": "reserveOut", "type": "float", "required": true}, {"name": "feeBps", "type": "int", "required": false, "default": {"source": "DEFAULT_TRADE_FEE_BPS"}}], "returns": "float", "safety": []},
-        {"name": "getAmountsOut", "interaction": "read", "arguments": [{"name": "amountIn", "type": "float", "required": true}, {"name": "src", "type": "str", "required": true}, {"name": "path", "type": "list", "required": true}], "returns": "list<float>", "safety": ["path", "precision", "signer_fee_tier"]},
-        {"name": "swapExactTokenForToken", "interaction": "write", "arguments": [{"name": "amountIn", "type": "float", "required": true}, {"name": "amountOutMin", "type": "float", "required": true}, {"name": "pair", "type": "int", "required": true}, {"name": "src", "type": "str", "required": true}, {"name": "to", "type": "str", "required": true}, {"name": "deadline", "type": "datetime.datetime", "required": true}], "returns": "float", "safety": ["approval_required", "deadline", "slippage", "precision", "signer_fee_tier"]},
-        {"name": "swapExactTokenForTokenSupportingFeeOnTransferTokens", "interaction": "write", "arguments": [{"name": "amountIn", "type": "float", "required": true}, {"name": "amountOutMin", "type": "float", "required": true}, {"name": "pair", "type": "int", "required": true}, {"name": "src", "type": "str", "required": true}, {"name": "to", "type": "str", "required": true}, {"name": "deadline", "type": "datetime.datetime", "required": true}], "returns": "float", "safety": ["approval_required", "deadline", "slippage", "precision", "signer_fee_tier", "fee_on_transfer"]},
-        {"name": "swapExactTokensForTokensSupportingFeeOnTransferTokens", "interaction": "write", "arguments": [{"name": "amountIn", "type": "float", "required": true}, {"name": "amountOutMin", "type": "float", "required": true}, {"name": "path", "type": "list", "required": true}, {"name": "src", "type": "str", "required": true}, {"name": "to", "type": "str", "required": true}, {"name": "deadline", "type": "datetime.datetime", "required": true}], "returns": "float", "safety": ["approval_required", "deadline", "slippage", "precision", "signer_fee_tier", "fee_on_transfer", "path"]},
-        {"name": "swapExactTokensForTokens", "interaction": "write", "arguments": [{"name": "amountIn", "type": "float", "required": true}, {"name": "amountOutMin", "type": "float", "required": true}, {"name": "path", "type": "list", "required": true}, {"name": "src", "type": "str", "required": true}, {"name": "to", "type": "str", "required": true}, {"name": "deadline", "type": "datetime.datetime", "required": true}], "returns": "float", "safety": ["approval_required", "deadline", "slippage", "precision", "signer_fee_tier", "path"]}
+        {"name": "getAmountOut", "interaction": "read", "arguments": [{"name": "amountIn", "type": "decimal", "required": true}, {"name": "reserveIn", "type": "decimal", "required": true}, {"name": "reserveOut", "type": "decimal", "required": true}, {"name": "feeBps", "type": "int", "required": false, "default": {"source": "DEFAULT_TRADE_FEE_BPS"}}], "returns": "decimal", "safety": []},
+        {"name": "getAmountIn", "interaction": "read", "arguments": [{"name": "amountOut", "type": "decimal", "required": true}, {"name": "reserveIn", "type": "decimal", "required": true}, {"name": "reserveOut", "type": "decimal", "required": true}, {"name": "feeBps", "type": "int", "required": false, "default": {"source": "DEFAULT_TRADE_FEE_BPS"}}], "returns": "decimal", "safety": []},
+        {"name": "getAmountsOut", "interaction": "read", "arguments": [{"name": "amountIn", "type": "decimal", "required": true}, {"name": "src", "type": "str", "required": true}, {"name": "path", "type": "list", "required": true}], "returns": "list<decimal>", "safety": ["path", "precision", "signer_fee_tier"]},
+        {"name": "swapExactTokenForToken", "interaction": "write", "arguments": [{"name": "amountIn", "type": "decimal", "required": true}, {"name": "amountOutMin", "type": "decimal", "required": true}, {"name": "pair", "type": "int", "required": true}, {"name": "src", "type": "str", "required": true}, {"name": "to", "type": "str", "required": true}, {"name": "deadline", "type": "datetime.datetime", "required": true}], "returns": "decimal", "safety": ["approval_required", "deadline", "slippage", "precision", "signer_fee_tier"]},
+        {"name": "swapExactTokenForTokenSupportingFeeOnTransferTokens", "interaction": "write", "arguments": [{"name": "amountIn", "type": "decimal", "required": true}, {"name": "amountOutMin", "type": "decimal", "required": true}, {"name": "pair", "type": "int", "required": true}, {"name": "src", "type": "str", "required": true}, {"name": "to", "type": "str", "required": true}, {"name": "deadline", "type": "datetime.datetime", "required": true}], "returns": "decimal", "safety": ["approval_required", "deadline", "slippage", "precision", "signer_fee_tier", "fee_on_transfer"]},
+        {"name": "swapExactTokensForTokensSupportingFeeOnTransferTokens", "interaction": "write", "arguments": [{"name": "amountIn", "type": "decimal", "required": true}, {"name": "amountOutMin", "type": "decimal", "required": true}, {"name": "path", "type": "list", "required": true}, {"name": "src", "type": "str", "required": true}, {"name": "to", "type": "str", "required": true}, {"name": "deadline", "type": "datetime.datetime", "required": true}], "returns": "decimal", "safety": ["approval_required", "deadline", "slippage", "precision", "signer_fee_tier", "fee_on_transfer", "path"]},
+        {"name": "swapExactTokensForTokens", "interaction": "write", "arguments": [{"name": "amountIn", "type": "decimal", "required": true}, {"name": "amountOutMin", "type": "decimal", "required": true}, {"name": "path", "type": "list", "required": true}, {"name": "src", "type": "str", "required": true}, {"name": "to", "type": "str", "required": true}, {"name": "deadline", "type": "datetime.datetime", "required": true}], "returns": "decimal", "safety": ["approval_required", "deadline", "slippage", "precision", "signer_fee_tier", "path"]}
       ],
       "events": [
         {"name": "ZeroFeeTraderUpdated", "fields": [{"name": "account", "type": "str", "indexed": true}, {"name": "enabled", "type": "bool", "indexed": false}]}
@@ -269,12 +269,12 @@
       "name": "con_dex_helper",
       "role": "helper",
       "path": "src/con_dex_helper.py",
-      "source_sha256": "0b7242bc2af032478138c4e58b5f2292fe4b0e970b8bc69eb6c4b0b3d7b98413",
+      "source_sha256": "659ebd9fed5a44dd2763f8bceabf151e9ba446743a0f8811576a3d9196bad199",
       "deploy_default": true,
       "description": "Single-pair buy and sell convenience entrypoints.",
       "functions": [
-        {"name": "buy", "interaction": "write", "arguments": [{"name": "buy_token", "type": "str", "required": true}, {"name": "sell_token", "type": "str", "required": true}, {"name": "amount", "type": "float", "required": true}, {"name": "slippage", "type": "float", "required": false, "default": 1}, {"name": "deadline", "type": "datetime.datetime", "required": false, "default": null}], "returns": "tuple<float,float>", "safety": ["approval_required", "deadline", "slippage", "signer_fee_tier", "fee_on_transfer"]},
-        {"name": "sell", "interaction": "write", "arguments": [{"name": "sell_token", "type": "str", "required": true}, {"name": "buy_token", "type": "str", "required": true}, {"name": "amount", "type": "float", "required": true}, {"name": "slippage", "type": "float", "required": false, "default": 1}, {"name": "deadline", "type": "datetime.datetime", "required": false, "default": null}], "returns": "tuple<float,float>", "safety": ["approval_required", "deadline", "slippage", "signer_fee_tier", "fee_on_transfer"]}
+        {"name": "buy", "interaction": "write", "arguments": [{"name": "buy_token", "type": "str", "required": true}, {"name": "sell_token", "type": "str", "required": true}, {"name": "amount", "type": "decimal", "required": true}, {"name": "slippage", "type": "decimal", "required": false, "default": 1}, {"name": "deadline", "type": "datetime.datetime", "required": false, "default": null}], "returns": "tuple<decimal,decimal>", "safety": ["approval_required", "deadline", "slippage", "signer_fee_tier", "fee_on_transfer"]},
+        {"name": "sell", "interaction": "write", "arguments": [{"name": "sell_token", "type": "str", "required": true}, {"name": "buy_token", "type": "str", "required": true}, {"name": "amount", "type": "decimal", "required": true}, {"name": "slippage", "type": "decimal", "required": false, "default": 1}, {"name": "deadline", "type": "datetime.datetime", "required": false, "default": null}], "returns": "tuple<decimal,decimal>", "safety": ["approval_required", "deadline", "slippage", "signer_fee_tier", "fee_on_transfer"]}
       ],
       "events": [],
       "errors": {
@@ -286,25 +286,25 @@
       "name": "con_lp_token",
       "role": "lp_token_template",
       "path": "src/con_lp_token.py",
-      "source_sha256": "94055195c759edc945783d964123149efd5153dcdce613e7a8399735ee7b4506",
+      "source_sha256": "870de6a574261261f4e1ed18949880857c76b8f46fd3263795d55c999c86d0e3",
       "deploy_default": false,
       "description": "XSC001-compatible LP-token template deployed once per pair.",
       "functions": [
         {"name": "change_metadata", "interaction": "write", "arguments": [{"name": "key", "type": "str", "required": true}, {"name": "value", "type": "Any", "required": true}], "returns": "null", "safety": ["metadata_access"]},
         {"name": "get_metadata", "interaction": "read", "arguments": [], "returns": "object", "safety": []},
-        {"name": "balance_of", "interaction": "read", "arguments": [{"name": "address", "type": "str", "required": true}], "returns": "float", "safety": []},
-        {"name": "allowance", "interaction": "read", "arguments": [{"name": "owner", "type": "str", "required": true}, {"name": "spender", "type": "str", "required": true}], "returns": "float", "safety": []},
-        {"name": "transfer", "interaction": "write", "arguments": [{"name": "amount", "type": "float", "required": true}, {"name": "to", "type": "str", "required": true}], "returns": "null", "safety": []},
-        {"name": "approve", "interaction": "write", "arguments": [{"name": "amount", "type": "float", "required": true}, {"name": "to", "type": "str", "required": true}], "returns": "null", "safety": ["approval_required"]},
-        {"name": "transfer_from", "interaction": "write", "arguments": [{"name": "amount", "type": "float", "required": true}, {"name": "to", "type": "str", "required": true}, {"name": "main_account", "type": "str", "required": true}], "returns": "null", "safety": ["approval_required"]},
-        {"name": "mint", "interaction": "write", "arguments": [{"name": "amount", "type": "float", "required": true}, {"name": "to", "type": "str", "required": true}], "returns": "null", "safety": ["minter_only"]},
-        {"name": "burn", "interaction": "write", "arguments": [{"name": "amount", "type": "float", "required": true}], "returns": "null", "safety": ["minter_only"]}
+        {"name": "balance_of", "interaction": "read", "arguments": [{"name": "address", "type": "str", "required": true}], "returns": "decimal", "safety": []},
+        {"name": "allowance", "interaction": "read", "arguments": [{"name": "owner", "type": "str", "required": true}, {"name": "spender", "type": "str", "required": true}], "returns": "decimal", "safety": []},
+        {"name": "transfer", "interaction": "write", "arguments": [{"name": "amount", "type": "decimal", "required": true}, {"name": "to", "type": "str", "required": true}], "returns": "null", "safety": []},
+        {"name": "approve", "interaction": "write", "arguments": [{"name": "amount", "type": "decimal", "required": true}, {"name": "to", "type": "str", "required": true}], "returns": "null", "safety": ["approval_required"]},
+        {"name": "transfer_from", "interaction": "write", "arguments": [{"name": "amount", "type": "decimal", "required": true}, {"name": "to", "type": "str", "required": true}, {"name": "main_account", "type": "str", "required": true}], "returns": "null", "safety": ["approval_required"]},
+        {"name": "mint", "interaction": "write", "arguments": [{"name": "amount", "type": "decimal", "required": true}, {"name": "to", "type": "str", "required": true}], "returns": "null", "safety": ["minter_only"]},
+        {"name": "burn", "interaction": "write", "arguments": [{"name": "amount", "type": "decimal", "required": true}], "returns": "null", "safety": ["minter_only"]}
       ],
       "events": [
-        {"name": "Transfer", "fields": [{"name": "from", "type": "str", "indexed": true}, {"name": "to", "type": "str", "indexed": true}, {"name": "amount", "type": "int|float|decimal", "indexed": false}]},
-        {"name": "Approve", "fields": [{"name": "from", "type": "str", "indexed": true}, {"name": "to", "type": "str", "indexed": true}, {"name": "amount", "type": "int|float|decimal", "indexed": false}]},
-        {"name": "Mint", "fields": [{"name": "to", "type": "str", "indexed": true}, {"name": "amount", "type": "int|float|decimal", "indexed": false}]},
-        {"name": "Burn", "fields": [{"name": "from", "type": "str", "indexed": true}, {"name": "amount", "type": "int|float|decimal", "indexed": false}]}
+        {"name": "Transfer", "fields": [{"name": "from", "type": "str", "indexed": true}, {"name": "to", "type": "str", "indexed": true}, {"name": "amount", "type": "int|decimal", "indexed": false}]},
+        {"name": "Approve", "fields": [{"name": "from", "type": "str", "indexed": true}, {"name": "to", "type": "str", "indexed": true}, {"name": "amount", "type": "int|decimal", "indexed": false}]},
+        {"name": "Mint", "fields": [{"name": "to", "type": "str", "indexed": true}, {"name": "amount", "type": "int|decimal", "indexed": false}]},
+        {"name": "Burn", "fields": [{"name": "from", "type": "str", "indexed": true}, {"name": "amount", "type": "int|decimal", "indexed": false}]}
       ],
       "errors": {
         "messages": ["Cannot approve negative balances.", "Cannot burn negative balances.", "Cannot mint negative balances.", "Cannot send negative balances.", "Managed metadata cannot be changed.", "Negative supply.", "Not enough coins approved to send. You have {approvals[main_account, ctx.caller]} and are trying to spend {amount}", "Not enough coins to burn.", "Not enough coins to send.", "Only minter can burn tokens.", "Only minter can mint tokens.", "Only operator can set metadata.", "minter_address must be a non-empty string.", "operator_address must be a non-empty string."],

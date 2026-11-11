@@ -47,7 +47,7 @@ export function TokenSelectorModal({ open, onClose, onSelect, exclude, account }
         contracts.map(async (c) => {
           try {
             const info = await getTokenInfo(c);
-            const bal = account ? await getBalance(c, account) : 0;
+            const bal = account ? Number(await getBalance(c, account)) : 0;
             return { info, balance: bal };
           } catch {
             return null;

@@ -88,15 +88,15 @@ export default function Portfolio() {
                   getTokenInfo(pair.token0),
                   getTokenInfo(pair.token1)
                 ]);
-                const share = pair.totalSupply > 0 ? lp / pair.totalSupply : 0;
+                const share = Number(pair.totalSupply) > 0 ? lp / Number(pair.totalSupply) : 0;
                 return {
                   pair,
                   token0: t0,
                   token1: t1,
                   lp,
                   share,
-                  amount0: share * pair.reserve0,
-                  amount1: share * pair.reserve1
+                  amount0: share * Number(pair.reserve0),
+                  amount1: share * Number(pair.reserve1)
                 };
               } catch {
                 return null;

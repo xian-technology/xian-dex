@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from contracting.compilation.compiler import ContractingCompiler
+from contracting.artifacts import build_contract_artifacts, validate_contract_artifacts
 from xian_linter import lint_code_inline
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -23,7 +23,7 @@ def fail(message: str) -> None:
 
 def validate_contract_source(path: Path) -> None:
     code = path.read_text()
-    errors = lint_code_inline(code)
+    errors = lint_code_inline(code, mode="xian_vm_v2")
     if errors:
         print(path.relative_to(ROOT))
         for error in errors:
@@ -34,8 +34,10 @@ def validate_contract_source(path: Path) -> None:
             )
         raise SystemExit(1)
 
-    compiler = ContractingCompiler(module_name=path.stem)
-    compiler.parse_to_code(code)
+    artifact = build_contract_artifacts(module_name=path.stem, source=code, vm_profile="xian_vm_v2")
+    validate_contract_artifacts(
+        module_name=path.stem, artifacts=artifact, input_source=code, vm_profile="xian_vm_v2"
+    )
 
 
 def sha256_file(path: Path) -> str:

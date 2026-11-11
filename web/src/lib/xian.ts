@@ -6,7 +6,7 @@ import { DEFAULT_RPC, STORAGE_KEYS } from "./constants";
 const rpc = createXianRpcStore({
   defaultRpcUrl: DEFAULT_RPC,
   storageKey: STORAGE_KEYS.rpc,
-  createClient: (url) => new XianClient({ rpcUrl: url })
+  createClient: (url) => new XianClient({ rpcUrl: url, vmProfile: "xian_vm_v2" })
 });
 
 export const getRpcUrl = rpc.getRpcUrl;

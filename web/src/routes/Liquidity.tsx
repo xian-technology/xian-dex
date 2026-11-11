@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ChevronDown, Plus, Minus, Info, Settings as SettingsIcon } from "lucide-react";
 import { TokenIcon } from "../components/TokenIcon";
@@ -26,7 +26,9 @@ import {
 } from "../lib/dex";
 import { getAllowance, getBalance, getTokenInfo, type TokenInfo } from "../lib/tokens";
 import { DEX_PAIRS, DEX_ROUTER, INFINITE_APPROVAL_AMOUNT, NATIVE_TOKEN } from "../lib/constants";
-import { formatNumber, toDecimalInput } from "../lib/format";
+import { fixedUnits, minimumAmountOutV2 } from "@xian-tech/dex";
+import { displayRate, positiveAmount, proportionalAmount } from "../lib/amounts";
+import { formatNumber } from "../lib/format";
 import { track } from "../lib/txHistory";
 
 type SendResult = {
@@ -54,13 +56,12 @@ export default function Liquidity() {
   const [pickB, setPickB] = useState(false);
   const [pickPosition, setPickPosition] = useState(false);
   const [pair, setPair] = useState<PairInfo | null>(null);
-  const [balanceA, setBalanceA] = useState(0);
-  const [balanceB, setBalanceB] = useState(0);
-  const [allowanceA, setAllowanceA] = useState(0);
-  const [allowanceB, setAllowanceB] = useState(0);
-  const [lpBalance, setLpBalance] = useState(0);
+  const [balanceA, setBalanceA] = useState("0");
+  const [balanceB, setBalanceB] = useState("0");
+  const [allowanceA, setAllowanceA] = useState("0");
+  const [allowanceB, setAllowanceB] = useState("0");
   const [lpBalanceInput, setLpBalanceInput] = useState("0");
-  const [lpAllowance, setLpAllowance] = useState(0);
+  const [lpAllowance, setLpAllowance] = useState("0");
   const [removeAmount, setRemoveAmount] = useState("");
   const [busy, setBusy] = useState(false);
   const [reload, setReload] = useState(0);
@@ -124,13 +125,12 @@ export default function Liquidity() {
     let cancel = false;
     (async () => {
       if (!wallet.account) {
-        setBalanceA(0);
-        setBalanceB(0);
-        setAllowanceA(0);
-        setAllowanceB(0);
-        setLpBalance(0);
+        setBalanceA("0");
+        setBalanceB("0");
+        setAllowanceA("0");
+        setAllowanceB("0");
         setLpBalanceInput("0");
-        setLpAllowance(0);
+        setLpAllowance("0");
         return;
       }
       const tasks: Promise<unknown>[] = [];
@@ -154,7 +154,6 @@ export default function Liquidity() {
         tasks.push(
           getLpBalanceSnapshot(pair.id, wallet.account).then((balance) => {
             if (cancel) return;
-            setLpBalance(balance.value);
             setLpBalanceInput(balance.input);
           }),
           getLpAllowance(pair.id, wallet.account, DEX_ROUTER).then(
@@ -162,9 +161,8 @@ export default function Liquidity() {
           )
         );
       } else {
-        setLpBalance(0);
         setLpBalanceInput("0");
-        setLpAllowance(0);
+        setLpAllowance("0");
       }
       await Promise.all(tasks);
     })();
@@ -176,44 +174,32 @@ export default function Liquidity() {
   // A pair can exist with zero reserves (created, then fully drained). It
   // must then behave like a brand-new pool: amount B stays editable and the
   // depositor sets the initial price.
-  const poolSeeded = !!pair && pair.reserve0 > 0 && pair.reserve1 > 0;
+  const poolSeeded = !!pair && fixedUnits(pair.reserve0) > 0n && fixedUnits(pair.reserve1) > 0n;
 
-  // auto-derive amountB when adding to a seeded pair
+  const a = positiveAmount(amountA, tokenA?.precision);
+  const b = positiveAmount(amountB, tokenB?.precision);
+  const lp = positiveAmount(removeAmount);
+
   useEffect(() => {
-    if (mode !== "add" || !pair || !tokenA || !tokenB) return;
-    if (pair.reserve0 <= 0 || pair.reserve1 <= 0) return;
-    const a = Number(amountA);
-    if (!Number.isFinite(a) || a <= 0) {
-      setAmountB("");
-      return;
-    }
-    const orderForward = pair.token0 === tokenA.contract;
-    const reserveA = orderForward ? pair.reserve0 : pair.reserve1;
-    const reserveB = orderForward ? pair.reserve1 : pair.reserve0;
-    const optimal = (a * reserveB) / reserveA;
-    // Must stay Number()-parseable — formatNumber's grouping ("1,234.5") is not.
-    setAmountB(toDecimalInput(optimal));
-  }, [amountA, pair, tokenA, tokenB, mode]);
+    if (mode !== "add" || !poolSeeded || !pair || !tokenA || !tokenB) return;
+    const forward = pair.token0 === tokenA.contract;
+    const reserveA = forward ? pair.reserve0 : pair.reserve1;
+    const reserveB = forward ? pair.reserve1 : pair.reserve0;
+    setAmountB(a ? proportionalAmount(a, reserveB, reserveA, tokenB.precision) ?? "" : "");
+  }, [a, pair, poolSeeded, tokenA, tokenB, mode]);
 
-  const minAmounts = useMemo(() => {
-    const slipFactor = 1 - settings.slippageBps / 10000;
-    return {
-      a: Number(amountA) * slipFactor,
-      b: Number(amountB) * slipFactor
-    };
-  }, [amountA, amountB, settings.slippageBps]);
+  const out0 = pair && lp ? proportionalAmount(lp, pair.reserve0, pair.totalSupply, pair.precision0) : null;
+  const out1 = pair && lp ? proportionalAmount(lp, pair.reserve1, pair.totalSupply, pair.precision1) : null;
 
   // ── Add Liquidity ────────────────────────────────────────────
   async function handleAdd() {
     if (!wallet.account || !tokenA || !tokenB) return;
-    const a = Number(amountA);
-    const b = Number(amountB);
-    if (!(a > 0) || !(b > 0)) return;
+    if (!a || !b) return;
     setBusy(true);
     try {
-      const approveAmtA = settings.infiniteApproval ? INFINITE_APPROVAL_AMOUNT : a * 1.05;
-      const approveAmtB = settings.infiniteApproval ? INFINITE_APPROVAL_AMOUNT : b * 1.05;
-      if (allowanceA < a) {
+      const approveAmtA = settings.infiniteApproval ? INFINITE_APPROVAL_AMOUNT : a;
+      const approveAmtB = settings.infiniteApproval ? INFINITE_APPROVAL_AMOUNT : b;
+      if (fixedUnits(allowanceA) < fixedUnits(a)) {
         const id = toasts.push({ kind: "pending", title: `Approving ${tokenA.symbol}…` });
         try {
           const result = (await track(
@@ -235,7 +221,7 @@ export default function Liquidity() {
           return;
         }
       }
-      if (allowanceB < b) {
+      if (fixedUnits(allowanceB) < fixedUnits(b)) {
         const id = toasts.push({ kind: "pending", title: `Approving ${tokenB.symbol}…` });
         try {
           const result = (await track(
@@ -274,8 +260,8 @@ export default function Liquidity() {
               tokenB: tokenB.contract,
               amountADesired: a,
               amountBDesired: b,
-              amountAMin: minAmounts.a,
-              amountBMin: minAmounts.b,
+              amountAMin: minimumAmountOutV2(a, settings.slippageBps, tokenA.precision ?? 30),
+              amountBMin: minimumAmountOutV2(b, settings.slippageBps, tokenB.precision ?? 30),
               to: wallet.account!,
               deadline: deadlineFromNow(settings.deadlineMin)
             }) as Promise<SendResult>
@@ -306,14 +292,13 @@ export default function Liquidity() {
   // ── Remove Liquidity ─────────────────────────────────────────
   async function handleRemove() {
     if (!wallet.account || !pair || !tokenA || !tokenB) return;
-    const lp = Number(removeAmount);
-    if (!(lp > 0)) return;
+    if (!lp || !out0 || !out1) return;
     setBusy(true);
     try {
-      if (lpAllowance < lp) {
+      if (fixedUnits(lpAllowance) < fixedUnits(lp)) {
         const id = toasts.push({ kind: "pending", title: "Approving LP tokens…" });
         try {
-          const lpApproveAmt = settings.infiniteApproval ? INFINITE_APPROVAL_AMOUNT : lp * 1.05;
+          const lpApproveAmt = settings.infiniteApproval ? INFINITE_APPROVAL_AMOUNT : lp;
           const lpTokenContract = (await getLpTokenName(pair.id)) ?? DEX_PAIRS;
           const result = (await track(
             {
@@ -334,10 +319,8 @@ export default function Liquidity() {
           return;
         }
       }
-      const slipFactor = 1 - settings.slippageBps / 10000;
-      const share = pair.totalSupply > 0 ? lp / pair.totalSupply : 0;
-      const minA = share * pair.reserve0 * slipFactor;
-      const minB = share * pair.reserve1 * slipFactor;
+      const minA = minimumAmountOutV2(out0, settings.slippageBps, pair.precision0 ?? 30);
+      const minB = minimumAmountOutV2(out1, settings.slippageBps, pair.precision1 ?? 30);
       const tokenAisToken0 = pair.token0 === tokenA.contract;
       const id = toasts.push({
         kind: "pending",
@@ -422,7 +405,7 @@ export default function Liquidity() {
                 {wallet.account && tokenA && (
                   <span className="muted small">
                     Balance: <strong>{formatNumber(balanceA)}</strong>{" "}
-                    <button className="link" onClick={() => setAmountA(toDecimalInput(balanceA))}>Max</button>
+                    <button className="link" onClick={() => setAmountA(balanceA)}>Max</button>
                   </span>
                 )}
               </div>
@@ -434,7 +417,7 @@ export default function Liquidity() {
                   placeholder="0.0"
                   aria-label="Token A amount"
                   value={amountA}
-                  onChange={(e) => setAmountA(e.target.value.replace(/[^\d.]/g, ""))}
+                  onChange={(e) => setAmountA(e.target.value)}
                 />
                 <button className="token-pick" onClick={() => setPickA(true)}>
                   {tokenA ? (
@@ -473,7 +456,7 @@ export default function Liquidity() {
                   aria-label="Token B amount"
                   value={amountB}
                   readOnly={poolSeeded}
-                  onChange={(e) => setAmountB(e.target.value.replace(/[^\d.]/g, ""))}
+                  onChange={(e) => setAmountB(e.target.value)}
                 />
                 <button className="token-pick" onClick={() => setPickB(true)}>
                   {tokenB ? (
@@ -493,9 +476,6 @@ export default function Liquidity() {
             </div>
 
             {tokenA && tokenB && !poolSeeded && (() => {
-              const a = Number(amountA);
-              const b = Number(amountB);
-              const havePrice = a > 0 && b > 0;
               return (
                 <div className="quote-summary">
                   <div className="info-row warning small">
@@ -506,20 +486,20 @@ export default function Liquidity() {
                       off-market, arbitrage bots will rebalance you at a loss.
                     </div>
                   </div>
-                  {havePrice && (
+                  {a && b && (
                     <>
                       <div className="quote-row">
                         <span className="muted">Initial price</span>
                         <span>
                           1 {tokenA.symbol} ={" "}
-                          <strong>{formatNumber(b / a)}</strong> {tokenB.symbol}
+                          <strong>{displayRate(b, a)}</strong> {tokenB.symbol}
                         </span>
                       </div>
                       <div className="quote-row">
                         <span className="muted"></span>
                         <span>
                           1 {tokenB.symbol} ={" "}
-                          <strong>{formatNumber(a / b)}</strong> {tokenA.symbol}
+                          <strong>{displayRate(a, b)}</strong> {tokenA.symbol}
                         </span>
                       </div>
                       <div className="quote-row">
@@ -544,10 +524,10 @@ export default function Liquidity() {
                 <div className="quote-row">
                   <span className="muted">Your share after deposit (est.)</span>
                   <span>
-                    {pair.totalSupply > 0
+                    {fixedUnits(pair.totalSupply) > 0n
                       ? `≈ ${(
                           ((Number(amountA) || 0) /
-                            (((tokenA.contract === pair.token0 ? pair.reserve0 : pair.reserve1) || 1) +
+                            ((Number(tokenA.contract === pair.token0 ? pair.reserve0 : pair.reserve1) || 1) +
                               (Number(amountA) || 0))) *
                           100
                         ).toFixed(2)}%`
@@ -567,15 +547,15 @@ export default function Liquidity() {
               <button className="btn btn-primary btn-block" disabled>
                 Tokens must differ
               </button>
-            ) : !(Number(amountA) > 0) || !(Number(amountB) > 0) ? (
+            ) : !a || !b ? (
               <button className="btn btn-primary btn-block" disabled>
                 Enter amounts
               </button>
-            ) : balanceA < Number(amountA) ? (
+            ) : fixedUnits(balanceA) < fixedUnits(a) ? (
               <button className="btn btn-primary btn-block" disabled>
                 Insufficient {tokenA.symbol}
               </button>
-            ) : balanceB < Number(amountB) ? (
+            ) : fixedUnits(balanceB) < fixedUnits(b) ? (
               <button className="btn btn-primary btn-block" disabled>
                 Insufficient {tokenB.symbol}
               </button>
@@ -593,7 +573,7 @@ export default function Liquidity() {
                 {wallet.account && pair && (
                   <span className="muted small">
                     Balance: <strong>{lpBalanceInput}</strong>{" "}
-                    {lpBalance > 0 && (
+                    {fixedUnits(lpBalanceInput) > 0n && (
                       <button className="link" onClick={() => setRemoveAmount(lpBalanceInput)}>
                         Max
                       </button>
@@ -609,7 +589,7 @@ export default function Liquidity() {
                   placeholder="0.0"
                   aria-label="LP tokens to remove"
                   value={removeAmount}
-                  onChange={(e) => setRemoveAmount(e.target.value.replace(/[^\d.]/g, ""))}
+                  onChange={(e) => setRemoveAmount(e.target.value)}
                 />
                 <button className="token-pick" onClick={() => setPickPosition(true)}>
                   {pair && tokenA && tokenB ? (
@@ -627,14 +607,14 @@ export default function Liquidity() {
                   <ChevronDown size={14} />
                 </button>
               </div>
-              {wallet.account && pair && lpBalance > 0 && (
+              {wallet.account && pair && fixedUnits(lpBalanceInput) > 0n && (
                 <div className="slider-row">
                   {[25, 50, 75, 100].map((p) => (
                     <button
                       key={p}
                       className="chip"
                       onClick={() => setRemoveAmount(
-                        p === 100 ? lpBalanceInput : toDecimalInput((lpBalance * p) / 100)
+                        minimumAmountOutV2(lpBalanceInput, (100 - p) * 100)
                       )}
                     >
                       {p}%
@@ -644,13 +624,10 @@ export default function Liquidity() {
               )}
             </div>
 
-            {pair && tokenA && tokenB && Number(removeAmount) > 0 && (
+            {pair && tokenA && tokenB && lp && out0 && out1 && (
               <div className="quote-summary">
                 {(() => {
-                  const lp = Number(removeAmount);
-                  const share = pair.totalSupply > 0 ? lp / pair.totalSupply : 0;
-                  const out0 = share * pair.reserve0;
-                  const out1 = share * pair.reserve1;
+                  const share = Number(lp) / Number(pair.totalSupply);
                   const sym0 = tokenA.contract === pair.token0 ? tokenA.symbol : tokenB.symbol;
                   const sym1 = tokenA.contract === pair.token0 ? tokenB.symbol : tokenA.symbol;
                   return (
@@ -658,13 +635,13 @@ export default function Liquidity() {
                       <div className="quote-row">
                         <span className="muted">You will receive (est.)</span>
                         <span>
-                          {formatNumber(out0)} {sym0}
+                          {out0} {sym0}
                         </span>
                       </div>
                       <div className="quote-row">
                         <span className="muted"></span>
                         <span>
-                          {formatNumber(out1)} {sym1}
+                          {out1} {sym1}
                         </span>
                       </div>
                       <div className="quote-row">
@@ -683,11 +660,11 @@ export default function Liquidity() {
               <button className="btn btn-ghost btn-block" onClick={() => setPickPosition(true)}>
                 Select an LP position
               </button>
-            ) : !(Number(removeAmount) > 0) ? (
+            ) : !lp || !out0 || !out1 || out0 === "0" || out1 === "0" ? (
               <button className="btn btn-primary btn-block" disabled>
                 Enter LP amount
               </button>
-            ) : Number(removeAmount) > lpBalance ? (
+            ) : fixedUnits(lp) > fixedUnits(lpBalanceInput) ? (
               <button className="btn btn-primary btn-block" disabled>
                 Exceeds LP balance
               </button>
@@ -722,7 +699,6 @@ export default function Liquidity() {
           setTokenA(position.token0);
           setTokenB(position.token1);
           setPair(position.pair);
-          setLpBalance(position.balance);
           setLpBalanceInput(position.balanceInput);
           setRemoveAmount("");
         }}

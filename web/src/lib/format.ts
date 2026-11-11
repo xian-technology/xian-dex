@@ -39,57 +39,6 @@ export function formatNumber(value: number | string | bigint, maxDecimals = 6): 
 }
 
 /**
- * Plain decimal string (no grouping separators, no exponent) that survives
- * Number() re-parsing — required for anything written into an amount input.
- * formatNumber() is display-only: its locale grouping ("1,234.5") parses to NaN.
- *
- * Truncates instead of rounding: a "Max" value that rounded up past the real
- * balance would fail the balance check it was meant to satisfy.
- */
-export function toDecimalInput(value: number | string | bigint, maxDecimals = 8): string {
-  if (typeof value === "bigint") return value.toString();
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    const match = /^([+-]?)(\d*)(?:\.(\d*))?$/.exec(trimmed);
-    if (match && (match[2] || match[3])) {
-      const sign = match[1] === "-" ? "-" : "";
-      const integer = (match[2] || "0").replace(/^0+(?=\d)/, "") || "0";
-      const rawFraction = match[3] ?? "";
-      const leadingFractionZeros = integer === "0"
-        ? rawFraction.match(/^0*/)?.[0].length ?? 0
-        : 0;
-      const places = integer === "0"
-        ? Math.min(18, maxDecimals + leadingFractionZeros)
-        : maxDecimals;
-      const fraction = rawFraction.slice(0, places).replace(/0+$/, "");
-      const hasValue = integer !== "0" || [...fraction].some((digit) => digit !== "0");
-      return `${sign && hasValue ? sign : ""}${integer}${fraction ? `.${fraction}` : ""}`;
-    }
-  }
-  const n = toNumber(value);
-  if (!Number.isFinite(n) || n === 0) return "0";
-  const abs = Math.abs(n);
-  if (abs >= 1e21) {
-    // toFixed switches to exponent notation up here; integers only.
-    return n.toLocaleString("en-US", { useGrouping: false, maximumFractionDigits: 0 });
-  }
-  // Below 1, extend precision so leading zeros don't swallow small amounts.
-  const places =
-    abs >= 1
-      ? maxDecimals
-      : Math.min(18, maxDecimals + Math.max(0, -Math.floor(Math.log10(abs))));
-  let fixed = n.toFixed(18);
-  const dot = fixed.indexOf(".");
-  if (dot !== -1) {
-    fixed = fixed
-      .slice(0, dot + 1 + places)
-      .replace(/0+$/, "")
-      .replace(/\.$/, "");
-  }
-  return fixed === "" || fixed === "-" ? "0" : fixed;
-}
-
-/**
  * Fixed-width price rendering for charts and tickers: constant decimal
  * counts per magnitude band keep axis labels and OHLC readouts from
  * jittering as values tick, unlike formatNumber which trims zeros.

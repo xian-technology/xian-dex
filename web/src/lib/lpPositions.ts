@@ -39,7 +39,7 @@ export async function listOwnedLpPositions(account: string): Promise<OwnedLpPosi
           lpToken: balance.lpToken,
           balance: balance.value,
           balanceInput: balance.input,
-          share: pair.totalSupply > 0 ? balance.value / pair.totalSupply : 0
+          share: Number(pair.totalSupply) > 0 ? balance.value / Number(pair.totalSupply) : 0
         };
       } catch {
         return null;

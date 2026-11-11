@@ -12,6 +12,7 @@ const getState = vi.hoisted(() => vi.fn(
 
 vi.mock("./wallet", () => ({ sendCall }));
 vi.mock("./xian", () => ({ getClient: () => ({ getState }) }));
+vi.mock("./tokens", () => ({ getTokenInfo: async () => ({ precision: 8 }) }));
 
 import { DEX_ROUTER } from "./constants";
 import {
@@ -35,7 +36,7 @@ describe("DEX transaction helpers", () => {
   });
 
   it("builds token approval calls", async () => {
-    await approveToken("currency", DEX_ROUTER, 25);
+    await approveToken("currency", DEX_ROUTER, "25");
 
     expect(sendCall).toHaveBeenCalledWith({
       contract: "currency",
@@ -47,23 +48,24 @@ describe("DEX transaction helpers", () => {
   it("builds swap calls with the selected router function", async () => {
     const deadline = deadlineFromNow(15);
     const quote = {
-      amountIn: 10,
-      amountOut: 9,
+      amountIn: "10",
+      amountOut: "9",
       hops: [
         {
           pairId: 1,
           fromToken: "currency",
           toToken: "token_b",
-          reserveIn: 100,
-          reserveOut: 100,
-          amountIn: 10,
-          amountOut: 9
+          reserveIn: "100",
+          reserveOut: "100",
+          amountIn: "10",
+          amountOut: "9"
         }
       ],
       path: [1],
       feeBps: 30,
-      priceImpact: 0.1,
-      midPriceOut: 1
+      outputPrecision: 8,
+      priceImpact: "0.1",
+      midPriceOut: "1"
     };
 
     await swap({
@@ -94,10 +96,10 @@ describe("DEX transaction helpers", () => {
     await addLiquidity({
       tokenA: "token_a",
       tokenB: "currency",
-      amountADesired: 500,
-      amountBDesired: 531.43217083,
-      amountAMin: 497.5,
-      amountBMin: 528.77500997585,
+      amountADesired: "9007199254740993.000000000000000000000000000001",
+      amountBDesired: "531.43217083",
+      amountAMin: "497.5",
+      amountBMin: "528.77500997585",
       to: "b".repeat(64),
       deadline
     });
@@ -108,7 +110,7 @@ describe("DEX transaction helpers", () => {
       kwargs: {
         tokenA: "token_a",
         tokenB: "currency",
-        amountADesired: { __fixed__: "500" },
+        amountADesired: { __fixed__: "9007199254740993.000000000000000000000000000001" },
         amountBDesired: { __fixed__: "531.43217083" },
         amountAMin: { __fixed__: "497.5" },
         amountBMin: { __fixed__: "528.77500997585" },
@@ -124,9 +126,9 @@ describe("DEX transaction helpers", () => {
     await removeLiquidity({
       tokenA: "token_a",
       tokenB: "currency",
-      liquidity: 9999.99999999,
-      amountAMin: 100.25,
-      amountBMin: 106.5,
+      liquidity: "9999.99999999",
+      amountAMin: "100.25",
+      amountBMin: "106.5",
       to: "b".repeat(64),
       deadline
     });
@@ -161,11 +163,11 @@ describe("DEX transaction helpers", () => {
       return pair[field] ?? null;
     });
 
-    const quote = await quoteSwap("a", "c", 100, 30);
+    const quote = await quoteSwap("a", "c", "100", 30);
 
     expect(quote?.path).toEqual([1, 2]);
     expect(quote?.hops.map((hop) => hop.toToken)).toEqual(["b", "c"]);
-    expect(quote?.amountOut).toBeGreaterThan(150);
+    expect(quote?.amountOut).toBe("165.79238659");
   });
 
   it("approves the router on the pair's bound LP token contract", async () => {
@@ -173,7 +175,7 @@ describe("DEX transaction helpers", () => {
     // approve on THAT token contract — not a nonexistent con_pairs.liqApprove.
     getState.mockResolvedValueOnce("con_lp_pair_7");
 
-    await approveLp(7, DEX_ROUTER, 100);
+    await approveLp(7, DEX_ROUTER, "100");
 
     expect(getState).toHaveBeenCalledWith("con_pairs", "pairs", ["7", "lpToken"]);
     expect(sendCall).toHaveBeenCalledWith({
@@ -204,7 +206,7 @@ describe("DEX transaction helpers", () => {
 
   it("throws when the pair has no bound LP token", async () => {
     getState.mockResolvedValueOnce(null);
-    await expect(approveLp(99, DEX_ROUTER, 100)).rejects.toThrow("No LP token");
+    await expect(approveLp(99, DEX_ROUTER, "100")).rejects.toThrow("No LP token");
     expect(sendCall).not.toHaveBeenCalled();
   });
 });

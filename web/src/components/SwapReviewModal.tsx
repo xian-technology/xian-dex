@@ -3,7 +3,7 @@ import { X, Info, Loader2 } from "lucide-react";
 import { TokenIcon } from "./TokenIcon";
 import { estimateChiFor, type ChiEstimate, type QuoteResult } from "../lib/dex";
 import type { TokenInfo } from "../lib/tokens";
-import { bpsToPercent, formatExecutionImpact, formatNumber } from "../lib/format";
+import { bpsToPercent, formatExecutionImpact } from "../lib/format";
 import { useModalBehavior } from "../hooks/useModalBehavior";
 
 interface Props {
@@ -11,7 +11,7 @@ interface Props {
   fromToken: TokenInfo | null;
   toToken: TokenInfo | null;
   quote: QuoteResult | null;
-  minOut: number;
+  minOut: string;
   slippageBps: number;
   deadlineMin: number;
   account: string | null;
@@ -69,7 +69,7 @@ export function SwapReviewModal({
 
   if (!open || !quote || !fromToken || !toToken) return null;
 
-  const priceImpactPct = quote.priceImpact * 100;
+  const priceImpactPct = Number(quote.priceImpact) * 100;
   const impactClass =
     priceImpactPct >= 5 ? "danger" : priceImpactPct >= 1.5 ? "warning" : "";
 
@@ -95,7 +95,7 @@ export function SwapReviewModal({
               <div>
                 <div className="muted small">You pay</div>
                 <div className="review-amount">
-                  {formatNumber(quote.amountIn)} <span className="small">{fromToken.symbol}</span>
+                  {quote.amountIn} <span className="small">{fromToken.symbol}</span>
                 </div>
               </div>
             </div>
@@ -105,7 +105,7 @@ export function SwapReviewModal({
               <div>
                 <div className="muted small">You receive (≈)</div>
                 <div className="review-amount">
-                  {formatNumber(quote.amountOut)} <span className="small">{toToken.symbol}</span>
+                  {quote.amountOut} <span className="small">{toToken.symbol}</span>
                 </div>
               </div>
             </div>
@@ -115,7 +115,7 @@ export function SwapReviewModal({
             <div className="kv">
               <span className="muted">Minimum received</span>
               <strong>
-                {formatNumber(minOut)} {toToken.symbol}
+                {minOut} {toToken.symbol}
               </strong>
             </div>
             <div className="kv">
@@ -125,7 +125,7 @@ export function SwapReviewModal({
             <div className="kv">
               <span className="muted">Execution impact</span>
               <span className={impactClass}>
-                {formatExecutionImpact(quote.priceImpact)}
+                {formatExecutionImpact(Number(quote.priceImpact))}
               </span>
             </div>
             <div className="kv">

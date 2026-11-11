@@ -3,10 +3,10 @@ import { useSearchParams } from "react-router-dom";
 import { ArrowDownUp, ChevronDown, RefreshCw, Settings as SettingsIcon, Info, Share2 } from "lucide-react";
 import {
   deadlineFromNow,
-  minimumAmountOut,
-  planXianDexV1ExactInSwap,
-  requiresApproval,
-  type XianDexV1ExactInQuote as QuoteResult
+  minimumAmountOutV2,
+  planXianDexV2ExactInSwap,
+  fixedUnits,
+  type XianDexV2ExactInQuote as QuoteResult
 } from "@xian-tech/dex";
 import { TokenIcon } from "../components/TokenIcon";
 import { ConnectButton } from "../components/ConnectButton";
@@ -32,9 +32,9 @@ import {
   copyToClipboard,
   formatExecutionImpact,
   formatNumber,
-  isValidContractName,
-  toDecimalInput
+  isValidContractName
 } from "../lib/format";
+import { displayRate, positiveAmount } from "../lib/amounts";
 import { track } from "../lib/txHistory";
 
 interface PanelProps {
@@ -43,7 +43,7 @@ interface PanelProps {
   amount: string;
   onAmount?(v: string): void;
   onPickToken(): void;
-  balance?: number;
+  balance?: string;
   readOnly?: boolean;
   account: string | null;
 }
@@ -56,8 +56,8 @@ function Panel({ label, token, amount, onAmount, onPickToken, balance, readOnly,
         {account && balance != null && token && (
           <span className="muted small">
             Balance: <strong>{formatNumber(balance)}</strong>{" "}
-            {!readOnly && balance > 0 && (
-              <button className="link" onClick={() => onAmount?.(toDecimalInput(balance))}>
+            {!readOnly && fixedUnits(balance) > 0n && (
+              <button className="link" onClick={() => onAmount?.(balance)}>
                 Max
               </button>
             )}
@@ -73,7 +73,7 @@ function Panel({ label, token, amount, onAmount, onPickToken, balance, readOnly,
           aria-label={`${label} amount`}
           value={amount}
           readOnly={readOnly}
-          onChange={(e) => onAmount?.(e.target.value.replace(/[^\d.]/g, ""))}
+          onChange={(e) => onAmount?.(e.target.value)}
         />
         <button className="token-pick" onClick={onPickToken}>
           {token ? (
@@ -108,19 +108,24 @@ export default function Swap() {
   const [pickFrom, setPickFrom] = useState(false);
   const [pickTo, setPickTo] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [quote, setQuote] = useState<QuoteResult | null>(null);
+  const [latestQuote, setQuote] = useState<QuoteResult | null>(null);
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [quoting, setQuoting] = useState(false);
   const [feeBps, setFeeBps] = useState(30);
   const [feeOnTransferIn, setFeeOnTransferIn] = useState(false);
   const [hopFotFlags, setHopFotFlags] = useState<Map<string, boolean>>(new Map());
   const [hopTokens, setHopTokens] = useState<Map<string, TokenInfo>>(new Map());
-  const [allowance, setAllowance] = useState<number>(0);
-  const [balanceFrom, setBalanceFrom] = useState<number>(0);
-  const [balanceTo, setBalanceTo] = useState<number>(0);
+  const [allowance, setAllowance] = useState("0");
+  const [balanceFrom, setBalanceFrom] = useState("0");
+  const [balanceTo, setBalanceTo] = useState("0");
   const [busy, setBusy] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [reviewOpen, setReviewOpen] = useState(false);
+
+  const quote = latestQuote && latestQuote.amountIn === positiveAmount(amountIn, fromToken?.precision)
+    && latestQuote.hops[0]?.fromToken === fromToken?.contract
+    && latestQuote.hops.at(-1)?.toToken === toToken?.contract && latestQuote.feeBps === feeBps
+    ? latestQuote : null;
 
   // seed tokens from URL params (?from=&to=&amount=) or fall back to native
   useEffect(() => {
@@ -140,7 +145,7 @@ export default function Swap() {
         if (cancel) return;
         if (target && !toToken) setToToken(target);
       }
-      if (amt && /^\d*\.?\d+$/.test(amt) && !amountIn) {
+      if (amt && positiveAmount(amt) && !amountIn) {
         setAmountIn(amt);
       }
     })();
@@ -181,8 +186,8 @@ export default function Swap() {
         setAllowance(allow);
         setFeeOnTransferIn(fot);
       } else {
-        setBalanceFrom(0);
-        setAllowance(0);
+        setBalanceFrom("0");
+        setAllowance("0");
         setFeeOnTransferIn(false);
       }
       if (toToken && wallet.account) {
@@ -190,7 +195,7 @@ export default function Swap() {
         if (cancel) return;
         setBalanceTo(bal);
       } else {
-        setBalanceTo(0);
+        setBalanceTo("0");
       }
     })();
     return () => {
@@ -206,8 +211,12 @@ export default function Swap() {
     // A cancelled in-flight quote skips its `finally`, so reset the flag here
     // or "Quoting…" sticks after the amount is cleared mid-fetch.
     setQuoting(false);
-    const inAmount = Number(amountIn);
-    if (!fromToken || !toToken || !Number.isFinite(inAmount) || inAmount <= 0) return;
+    const inAmount = positiveAmount(amountIn, fromToken?.precision);
+    if (!fromToken || !toToken) return;
+    if (!inAmount) {
+      if (amountIn) setQuoteError(`Enter a positive amount with at most ${fromToken.precision ?? 30} decimal places.`);
+      return;
+    }
     if (fromToken.contract === toToken.contract) {
       setQuoteError("Tokens must differ");
       return;
@@ -276,8 +285,8 @@ export default function Swap() {
   }
 
   const minOut = useMemo(() => {
-    if (!quote) return 0;
-    return minimumAmountOut(quote.amountOut, settings.slippageBps);
+    if (!quote) return "0";
+    return minimumAmountOutV2(quote.amountOut, settings.slippageBps, quote.outputPrecision);
   }, [quote, settings.slippageBps]);
 
   function flip() {
@@ -286,9 +295,9 @@ export default function Swap() {
     setAmountIn("");
   }
 
-  const insufficient = quote && balanceFrom < quote.amountIn;
-  const needsApproval = !!fromToken && !!quote && requiresApproval(allowance, quote.amountIn);
-  const priceImpactPct = quote ? quote.priceImpact * 100 : 0;
+  const insufficient = quote && fixedUnits(balanceFrom) < fixedUnits(quote.amountIn);
+  const needsApproval = !!fromToken && !!quote && fixedUnits(allowance) < fixedUnits(quote.amountIn);
+  const priceImpactPct = quote ? Number(quote.priceImpact) * 100 : 0;
   const priceImpactClass =
     priceImpactPct >= 5 ? "danger" : priceImpactPct >= 1.5 ? "warning" : "muted";
 
@@ -313,7 +322,7 @@ export default function Swap() {
     try {
       const amount = settings.infiniteApproval
         ? INFINITE_APPROVAL_AMOUNT
-        : quote.amountIn * 1.05;
+        : quote.amountIn;
       const result = (await track(
         {
           label: `Approve ${fromToken.symbol}${settings.infiniteApproval ? " (∞)" : ""}`,
@@ -357,7 +366,7 @@ export default function Swap() {
         feeOnTransferTokens: feeOnTransferTokens(),
         supportingFeeOnTransfer: useSupporting
       };
-      const fn = planXianDexV1ExactInSwap(request).call.function;
+      const fn = planXianDexV2ExactInSwap(request).call.function;
       const result = await track(
         {
           label: `Swap ${fromToken.symbol} → ${toToken.symbol}`,
@@ -462,7 +471,7 @@ export default function Swap() {
         <Panel
           label="To"
           token={toToken}
-          amount={quote ? toDecimalInput(quote.amountOut, 6) : ""}
+          amount={quote ? quote.amountOut : ""}
           onPickToken={() => setPickTo(true)}
           balance={wallet.account ? balanceTo : undefined}
           account={wallet.account}
@@ -477,7 +486,7 @@ export default function Swap() {
               <span>
                 1 {fromToken?.symbol} ≈{" "}
                 <strong>
-                  {formatNumber(quote.amountOut / Math.max(quote.amountIn, 1e-12))}
+                  {displayRate(quote.amountOut, quote.amountIn)}
                 </strong>{" "}
                 {toToken?.symbol}
               </span>
@@ -485,13 +494,13 @@ export default function Swap() {
             <div className="quote-row">
               <span className="muted">Min received ({(settings.slippageBps / 100).toFixed(2)}% slippage)</span>
               <span>
-                <strong>{formatNumber(minOut)}</strong> {toToken?.symbol}
+                <strong>{minOut}</strong> {toToken?.symbol}
               </span>
             </div>
             <div className="quote-row">
               <span className="muted">Execution impact</span>
               <span className={priceImpactClass}>
-                {formatExecutionImpact(quote.priceImpact)}
+                {formatExecutionImpact(Number(quote.priceImpact))}
               </span>
             </div>
             <div className="quote-row">
@@ -585,8 +594,8 @@ export default function Swap() {
         deadlineMin={settings.deadlineMin}
         account={wallet.account}
         estimateRequest={
-          quote && fromToken && toToken && wallet.account
-            ? planXianDexV1ExactInSwap({
+          reviewOpen && !blockedIntermediate && quote && fromToken && toToken && wallet.account
+            ? planXianDexV2ExactInSwap({
                 quote,
                 recipient: wallet.account,
                 slippageBps: settings.slippageBps,

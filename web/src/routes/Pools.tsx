@@ -92,9 +92,9 @@ export default function Pools() {
       try {
         const p = await getPair(expandedId);
         if (cancel || !p) return;
-        if (p.reserve0 <= 0 || p.reserve1 <= 0) return;
+        if (Number(p.reserve0) <= 0 || Number(p.reserve1) <= 0) return;
         setHistory((h) => {
-          const next = [...h, p.reserve1 / p.reserve0];
+          const next = [...h, Number(p.reserve1) / Number(p.reserve0)];
           if (next.length > LIVE_HISTORY_CAP) next.shift();
           return next;
         });
@@ -133,7 +133,7 @@ export default function Pools() {
           );
         case "tvl":
         default:
-          return b.pair.reserve0 + b.pair.reserve1 - (a.pair.reserve0 + a.pair.reserve1);
+          return Number(b.pair.reserve0) + Number(b.pair.reserve1) - (Number(a.pair.reserve0) + Number(a.pair.reserve1));
       }
     });
     return list;
@@ -199,8 +199,8 @@ export default function Pools() {
       ) : (
         <div className="pool-grid">
           {filtered.map(({ pair, token0, token1 }) => {
-            const price0in1 = pair.reserve0 > 0 ? pair.reserve1 / pair.reserve0 : 0;
-            const price1in0 = pair.reserve1 > 0 ? pair.reserve0 / pair.reserve1 : 0;
+            const price0in1 = Number(pair.reserve0) > 0 ? Number(pair.reserve1) / Number(pair.reserve0) : 0;
+            const price1in0 = Number(pair.reserve1) > 0 ? Number(pair.reserve0) / Number(pair.reserve1) : 0;
             const lp = lpBalances.get(pair.id) ?? 0;
             const isExpanded = expandedId === pair.id;
             return (

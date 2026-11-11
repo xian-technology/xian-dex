@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Settings as SettingsIcon, X, Check } from "lucide-react";
+import { slippageBpsFromPercent } from "../lib/amounts";
 import { getRpcUrl, pingRpc, setRpcUrl } from "../lib/xian";
 import { useSettings } from "../hooks/useSettings";
 import { useModalBehavior } from "../hooks/useModalBehavior";
@@ -30,10 +31,8 @@ export function SettingsModal({ open, onClose, onChange }: Props) {
 
   function applySlippage(value: string) {
     setSlipInput(value);
-    const num = parseFloat(value);
-    if (Number.isFinite(num) && num >= 0 && num <= 50) {
-      settings.setSlippageBps(Math.round(num * 100));
-    }
+    const bps = slippageBpsFromPercent(value);
+    if (bps != null) settings.setSlippageBps(bps);
   }
 
   function applyDeadline(value: string) {
