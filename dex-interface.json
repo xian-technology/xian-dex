@@ -221,7 +221,7 @@
       "name": "con_dex",
       "role": "router",
       "path": "src/con_dex.py",
-      "source_sha256": "b990fd5471b391141eace0ca5f6d929ff40a536cd88431021690851770fe6025",
+      "source_sha256": "a4d08313cddba639356141c2d08fe7ef92d3c5747f3a00347194110237c66eb2",
       "deploy_default": true,
       "description": "Preferred router for liquidity, quotes, and single- or multi-hop swaps.",
       "functions": [

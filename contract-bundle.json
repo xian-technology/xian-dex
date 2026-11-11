@@ -22,7 +22,7 @@
       "name": "con_dex",
       "role": "router",
       "path": "src/con_dex.py",
-      "sha256": "b990fd5471b391141eace0ca5f6d929ff40a536cd88431021690851770fe6025",
+      "sha256": "a4d08313cddba639356141c2d08fe7ef92d3c5747f3a00347194110237c66eb2",
       "deploy_order": 20,
       "default_chi": 200000
     },

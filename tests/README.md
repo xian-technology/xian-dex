@@ -9,7 +9,8 @@ Current coverage:
 - liquidity add/remove against a fee-on-transfer token
 - caller-order amount returns
 - minimum amount checks on actual received amounts
-- single-path fee-on-transfer swap return values
+- single-path fee-on-transfer swap return values and rejection of a source
+  token outside the pair
 - unsolicited token transfers not being credited to a pair
 - router-only pair crediting
 - multi-hop routing and invalid-path rejection

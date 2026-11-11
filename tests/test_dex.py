@@ -772,6 +772,41 @@ class TestDexRouter(unittest.TestCase):
         self.assertAmountEqual(reserves[0], "95")
         self.assertAmountEqual(reserves[1], "100")
 
+    def test_supporting_fee_single_pair_rejects_source_outside_pair(self):
+        pair_id, _, _ = self.create_pair("con_plain_mid", "currency")
+        self.dex.addLiquidity(
+            tokenA="con_plain_mid",
+            tokenB="currency",
+            amountADesired=1000,
+            amountBDesired=1000,
+            amountAMin=0,
+            amountBMin=0,
+            to=self.lp,
+            deadline=self.deadline,
+            signer=self.lp,
+            environment={"now": self.now},
+        )
+        # Unattributed currency held by con_pairs must not be claimable by
+        # paying with a token that is not part of the pair.
+        self.currency.transfer(amount=100, to="con_pairs", signer=self.operator)
+        mid_before = self.plain_mid.balance_of(address=self.trader)
+        out_before = self.plain_out.balance_of(address=self.trader)
+
+        with self.assertRaisesRegex(AssertionError, "SNAKX: INVALID_PATH"):
+            self.dex.swapExactTokenForTokenSupportingFeeOnTransferTokens(
+                amountIn=50,
+                amountOutMin=0,
+                pair=pair_id,
+                src="con_plain_out",
+                to=self.trader,
+                deadline=self.deadline,
+                signer=self.trader,
+                environment={"now": self.now},
+            )
+
+        self.assertEqual(self.plain_mid.balance_of(address=self.trader), mid_before)
+        self.assertEqual(self.plain_out.balance_of(address=self.trader), out_before)
+
     def test_sync2_is_router_only(self):
         _, pair_id = self.bootstrap_pair()
         with self.assertRaises(AssertionError):

@@ -385,13 +385,13 @@ def swapExactTokenForTokenSupportingFeeOnTransferTokens(
 ):
 	assert now < deadline, 'SNAKX: EXPIRED'
 	pairs = PAIRS()
+	token_out = validate_path(src, [pair])
 	fee_bps = current_trade_fee_bps()
-	
+
 	TOK0 = pairsmap[pair, "token0"]
-	
+
 	order = (src == TOK0)
-	
-	token_out = TOK0 if not order else pairsmap[pair, "token1"]
+
 	amountIn = normalize_token_amount(src, amountIn)
 	amountOutMin = normalize_token_amount(token_out, amountOutMin)
 	t = load_token(token_out)
