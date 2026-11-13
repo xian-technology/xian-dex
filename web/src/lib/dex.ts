@@ -230,10 +230,9 @@ export async function estimateChiFor(
       function: fn,
       kwargs
     });
-    return {
-      estimated: result.estimated,
-      suggested: Math.ceil(result.estimated * 1.1)
-    };
+    // `suggested` is the SDK's estimate plus standard headroom: the budget the
+    // wallet supplies when the call carries no chi of its own.
+    return { estimated: result.estimated, suggested: result.suggested };
   } catch {
     return null;
   }

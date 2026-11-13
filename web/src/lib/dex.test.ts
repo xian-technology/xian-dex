@@ -11,7 +11,9 @@ const getState = vi.hoisted(() => vi.fn(
 ));
 
 vi.mock("./wallet", () => ({ sendCall }));
-vi.mock("./xian", () => ({ getClient: () => ({ getState }) }));
+const estimateChi = vi.hoisted(() => vi.fn(async () => ({ estimated: 1_000, suggested: 1_050 })));
+
+vi.mock("./xian", () => ({ getClient: () => ({ getState, estimateChi }) }));
 vi.mock("./tokens", () => ({ getTokenInfo: async () => ({ precision: 8 }) }));
 
 import { DEX_ROUTER } from "./constants";
@@ -20,6 +22,7 @@ import {
   approveLp,
   approveToken,
   deadlineFromNow,
+  estimateChiFor,
   getLpBalanceSnapshot,
   invalidatePairCache,
   quoteSwap,
@@ -208,5 +211,25 @@ describe("DEX transaction helpers", () => {
     getState.mockResolvedValueOnce(null);
     await expect(approveLp(99, DEX_ROUTER, "100")).rejects.toThrow("No LP token");
     expect(sendCall).not.toHaveBeenCalled();
+  });
+});
+
+describe("chi estimate", () => {
+  it("shows the budget the wallet supplies: the SDK's suggestion", async () => {
+    await expect(estimateChiFor("alice", DEX_ROUTER, "swapExactTokenForToken", {})).resolves.toEqual({
+      estimated: 1_000,
+      suggested: 1_050
+    });
+    expect(estimateChi).toHaveBeenCalledWith({
+      sender: "alice",
+      contract: DEX_ROUTER,
+      function: "swapExactTokenForToken",
+      kwargs: {}
+    });
+  });
+
+  it("returns null when the node cannot estimate", async () => {
+    estimateChi.mockRejectedValueOnce(new Error("simulation disabled"));
+    await expect(estimateChiFor("alice", DEX_ROUTER, "swapExactTokenForToken", {})).resolves.toBeNull();
   });
 });
