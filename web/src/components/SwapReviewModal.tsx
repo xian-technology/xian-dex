@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { X, Info, Loader2 } from "lucide-react";
 import { TokenIcon } from "./TokenIcon";
-import { estimateChiFor, type ChiEstimate, type QuoteResult } from "../lib/dex";
+import { estimateChiFor, type QuoteResult } from "../lib/dex";
 import type { TokenInfo } from "../lib/tokens";
-import { bpsToPercent, formatExecutionImpact } from "../lib/format";
+import { bpsToPercent, formatExecutionImpact, impactClassFor } from "../lib/format";
 import { useModalBehavior } from "../hooks/useModalBehavior";
 
 interface Props {
@@ -27,26 +27,14 @@ interface Props {
   hopTokenSymbol(contract: string): string;
 }
 
-export function SwapReviewModal({
-  open,
-  fromToken,
-  toToken,
-  quote,
-  minOut,
-  slippageBps,
-  deadlineMin,
-  account,
-  estimateRequest,
-  busy,
-  onClose,
-  onConfirm,
-  hopTokenSymbol
-}: Props) {
-  const [chi, setChi] = useState<ChiEstimate | null>(null);
-  const [chiLoading, setChiLoading] = useState(false);
-  // While submitting, closing must go through the (disabled) Cancel button.
-  useModalBehavior(open && !busy, onClose);
+type EstimateRequest = Props["estimateRequest"];
 
+const CONFIRM_BUTTON_CLASS = { danger: "btn-danger", warning: "btn-primary", "": "btn-primary" };
+
+/** The simulated chi of the swap call: exactly what the wallet supplies. */
+function useChiEstimate(open: boolean, estimateRequest: EstimateRequest, account: string | null) {
+  const [chi, setChi] = useState<number | null>(null);
+  const [chiLoading, setChiLoading] = useState(false);
   useEffect(() => {
     if (!open || !estimateRequest || !account) {
       setChi(null);
@@ -67,11 +55,38 @@ export function SwapReviewModal({
     };
   }, [open, estimateRequest, account]);
 
+  return { chi, chiLoading };
+}
+
+function ChiEstimateValue({ chi, loading }: { chi: number | null; loading: boolean }) {
+  if (loading) return <Loader2 size={12} className="spin" />;
+  if (chi === null) return <span className="muted">unavailable</span>;
+  return <strong>{chi.toLocaleString()}</strong>;
+}
+
+export function SwapReviewModal({
+  open,
+  fromToken,
+  toToken,
+  quote,
+  minOut,
+  slippageBps,
+  deadlineMin,
+  account,
+  estimateRequest,
+  busy,
+  onClose,
+  onConfirm,
+  hopTokenSymbol
+}: Props) {
+  const { chi, chiLoading } = useChiEstimate(open, estimateRequest, account);
+  // While submitting, closing must go through the (disabled) Cancel button.
+  useModalBehavior(open && !busy, onClose);
+
   if (!open || !quote || !fromToken || !toToken) return null;
 
   const priceImpactPct = Number(quote.priceImpact) * 100;
-  const impactClass =
-    priceImpactPct >= 5 ? "danger" : priceImpactPct >= 1.5 ? "warning" : "";
+  const impactClass = impactClassFor(priceImpactPct);
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -150,23 +165,12 @@ export function SwapReviewModal({
             <div className="kv">
               <span className="muted">CHI estimate</span>
               <span>
-                {chiLoading ? (
-                  <Loader2 size={12} className="spin" />
-                ) : chi ? (
-                  <>
-                    <strong>{chi.estimated.toLocaleString()}</strong>{" "}
-                    <span className="muted small">
-                      (max {chi.suggested.toLocaleString()})
-                    </span>
-                  </>
-                ) : (
-                  <span className="muted">unavailable</span>
-                )}
+                <ChiEstimateValue chi={chi} loading={chiLoading} />
               </span>
             </div>
           </div>
 
-          {priceImpactPct >= 5 && (
+          {impactClass === "danger" && (
             <div className="info-row danger small">
               <Info size={12} /> Execution impact is high. Consider a smaller trade.
             </div>
@@ -177,7 +181,7 @@ export function SwapReviewModal({
               Cancel
             </button>
             <button
-              className={"btn " + (priceImpactPct >= 5 ? "btn-danger" : "btn-primary")}
+              className={"btn " + CONFIRM_BUTTON_CLASS[impactClass]}
               onClick={onConfirm}
               disabled={busy}
             >

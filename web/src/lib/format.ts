@@ -71,6 +71,12 @@ export function formatExecutionImpact(priceImpact: number, decimals = 2): string
   return `${Math.max(0, priceImpact * 100).toFixed(decimals)}% worse than spot`;
 }
 
+/** CSS class for an execution impact given in percent. */
+export function impactClassFor(impactPct: number): "danger" | "warning" | "" {
+  if (impactPct >= 5) return "danger";
+  return impactPct >= 1.5 ? "warning" : "";
+}
+
 export function bpsToPercent(bps: number): string {
   return `${(bps / 100).toFixed(bps % 100 === 0 ? 0 : 2)}%`;
 }

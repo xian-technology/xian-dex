@@ -36,6 +36,7 @@ import {
 } from "../lib/format";
 import { displayRate, positiveAmount } from "../lib/amounts";
 import { track } from "../lib/txHistory";
+import { txFailureMessage } from "../lib/txFailure";
 
 interface PanelProps {
   label: string;
@@ -343,7 +344,7 @@ export default function Swap() {
       toasts.update(id, {
         kind: "error",
         title: "Approval failed",
-        message: e instanceof Error ? e.message : String(e)
+        message: txFailureMessage(e)
       });
     } finally {
       setBusy(false);
@@ -398,7 +399,7 @@ export default function Swap() {
       toasts.update(id, {
         kind: "error",
         title: "Swap failed",
-        message: e instanceof Error ? e.message : String(e)
+        message: txFailureMessage(e)
       });
     } finally {
       setBusy(false);

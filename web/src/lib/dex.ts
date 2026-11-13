@@ -11,7 +11,8 @@ import {
   type XianDatetime
 } from "@xian-tech/dex";
 import { getClient } from "./xian";
-import { sendCall } from "./wallet";
+import { sendCall as walletSendCall, type CallIntent, type SendCallResult } from "./wallet";
+import { txFailureMessage } from "./txFailure";
 import {
   DEX_PAIRS,
   DEX_ROUTER,
@@ -22,6 +23,15 @@ import { fixed } from "@xian-tech/client";
 import { chainAmount } from "./amounts";
 import { getTokenInfo } from "./tokens";
 import { toNumber } from "./format";
+
+/** Send a call; one that executed and failed rejects with its receipt message. */
+async function sendCall(intent: CallIntent): Promise<SendCallResult> {
+  const result = await walletSendCall(intent);
+  if (result.receipt?.success === false) {
+    throw new Error(txFailureMessage(result.receipt.message || "Transaction failed"));
+  }
+  return result;
+}
 
 export interface PairInfo extends XianDexV2Pair {
   totalSupply: string;
@@ -212,17 +222,13 @@ export async function approveToken(
   return sendCall(planXianDexV2TokenApproval({ token, spender, amount }));
 }
 
-export interface ChiEstimate {
-  estimated: number;
-  suggested: number;
-}
-
+/** The simulated chi: exactly what the wallet supplies for the call. */
 export async function estimateChiFor(
   sender: string,
   contract: string,
   fn: string,
   kwargs: Record<string, unknown>
-): Promise<ChiEstimate | null> {
+): Promise<number | null> {
   try {
     const result = await getClient().estimateChi({
       sender,
@@ -230,9 +236,7 @@ export async function estimateChiFor(
       function: fn,
       kwargs
     });
-    // `suggested` is the SDK's estimate plus standard headroom: the budget the
-    // wallet supplies when the call carries no chi of its own.
-    return { estimated: result.estimated, suggested: result.suggested };
+    return result.estimated;
   } catch {
     return null;
   }

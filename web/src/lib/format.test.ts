@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatExecutionImpact, formatNumber, formatPrice } from "./format";
+import { formatExecutionImpact, formatNumber, formatPrice, impactClassFor } from "./format";
 
 describe("formatNumber", () => {
   it("groups thousands for display", () => {
@@ -31,5 +31,18 @@ describe("formatExecutionImpact", () => {
 
   it("does not render a negative directional impact", () => {
     expect(formatExecutionImpact(-0.1)).toBe("0.00% worse than spot");
+  });
+});
+
+describe("impactClassFor", () => {
+  it("flags high execution impact as danger and moderate impact as warning", () => {
+    expect([0, 1.49, 1.5, 4.99, 5, 12].map(impactClassFor)).toEqual([
+      "",
+      "",
+      "warning",
+      "warning",
+      "danger",
+      "danger"
+    ]);
   });
 });

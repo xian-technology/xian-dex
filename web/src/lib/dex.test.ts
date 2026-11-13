@@ -11,7 +11,7 @@ const getState = vi.hoisted(() => vi.fn(
 ));
 
 vi.mock("./wallet", () => ({ sendCall }));
-const estimateChi = vi.hoisted(() => vi.fn(async () => ({ estimated: 1_000, suggested: 1_050 })));
+const estimateChi = vi.hoisted(() => vi.fn(async () => ({ estimated: 1_000, simulation: {} })));
 
 vi.mock("./xian", () => ({ getClient: () => ({ getState, estimateChi }) }));
 vi.mock("./tokens", () => ({ getTokenInfo: async () => ({ precision: 8 }) }));
@@ -29,6 +29,7 @@ import {
   removeLiquidity,
   swap
 } from "./dex";
+import { OUT_OF_CHI_MESSAGE } from "@xian-tech/web-kit";
 
 describe("DEX transaction helpers", () => {
   beforeEach(() => {
@@ -215,11 +216,8 @@ describe("DEX transaction helpers", () => {
 });
 
 describe("chi estimate", () => {
-  it("shows the budget the wallet supplies: the SDK's suggestion", async () => {
-    await expect(estimateChiFor("alice", DEX_ROUTER, "swapExactTokenForToken", {})).resolves.toEqual({
-      estimated: 1_000,
-      suggested: 1_050
-    });
+  it("shows the chi the wallet supplies: exactly the simulated chi", async () => {
+    await expect(estimateChiFor("alice", DEX_ROUTER, "swapExactTokenForToken", {})).resolves.toBe(1_000);
     expect(estimateChi).toHaveBeenCalledWith({
       sender: "alice",
       contract: DEX_ROUTER,
@@ -231,5 +229,44 @@ describe("chi estimate", () => {
   it("returns null when the node cannot estimate", async () => {
     estimateChi.mockRejectedValueOnce(new Error("simulation disabled"));
     await expect(estimateChiFor("alice", DEX_ROUTER, "swapExactTokenForToken", {})).resolves.toBeNull();
+  });
+});
+
+describe("executed but failed transactions", () => {
+  const request = {
+    tokenA: "currency",
+    tokenB: "token_b",
+    liquidity: "1",
+    amountAMin: "0",
+    amountBMin: "0",
+    to: "b".repeat(64),
+    deadline: deadlineFromNow(15)
+  };
+
+  it("reject with the receipt message instead of reporting success", async () => {
+    sendCall.mockResolvedValueOnce({
+      txHash: "DEX123",
+      finalized: true,
+      receipt: { success: false, message: "AssertionError('Insufficient liquidity')" }
+    } as never);
+    await expect(removeLiquidity(request)).rejects.toThrow("AssertionError('Insufficient liquidity')");
+  });
+
+  it("fall back to a generic message when the receipt has none", async () => {
+    sendCall.mockResolvedValueOnce({
+      txHash: "DEX123",
+      finalized: true,
+      receipt: { success: false, message: "" }
+    } as never);
+    await expect(removeLiquidity(request)).rejects.toThrow("Transaction failed");
+  });
+
+  it("explain an out-of-chi failure as a changed state", async () => {
+    sendCall.mockResolvedValueOnce({
+      txHash: "DEX123",
+      finalized: true,
+      receipt: { success: false, message: "'Out of chi.'" }
+    } as never);
+    await expect(removeLiquidity(request)).rejects.toThrow(OUT_OF_CHI_MESSAGE);
   });
 });

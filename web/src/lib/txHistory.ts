@@ -1,4 +1,5 @@
 import { STORAGE_KEYS } from "./constants";
+import { txFailureMessage } from "./txFailure";
 import { getClient } from "./xian";
 
 const RECONCILE_STALE_MS = 10 * 60 * 1000;
@@ -93,37 +94,33 @@ export async function reconcilePendingTxs(): Promise<void> {
   if (pending.length === 0) return;
   const client = getClient();
   const now = Date.now();
-  await Promise.all(
-    pending.map(async (record) => {
-      // No hash means the wallet never even returned a submission ack.
-      if (!record.txHash) {
-        if (now - record.timestamp > RECONCILE_STALE_MS) {
-          updateTx(record.id, { status: "failed", message: "No tx hash recorded" });
-        }
-        return;
-      }
-      try {
-        const receipt = await client.getTx(record.txHash);
-        if (receipt.success) {
-          updateTx(record.id, { status: "success" });
-        } else if (receipt.txHash) {
-          updateTx(record.id, {
-            status: "failed",
-            message:
-              typeof receipt.message === "string"
-                ? receipt.message
-                : "Transaction failed"
-          });
-        } else if (now - record.timestamp > RECONCILE_STALE_MS) {
-          updateTx(record.id, { status: "failed", message: "Transaction not found on chain" });
-        }
-      } catch {
-        if (now - record.timestamp > RECONCILE_STALE_MS) {
-          updateTx(record.id, { status: "failed", message: "Could not reach RPC to confirm" });
-        }
-      }
-    })
-  );
+  await Promise.all(pending.map((record) => reconcileRecord(client, record, now)));
+}
+
+type Client = ReturnType<typeof getClient>;
+
+async function reconcileRecord(client: Client, record: TxRecord, now: number): Promise<void> {
+  const stale = now - record.timestamp > RECONCILE_STALE_MS;
+  // No hash means the wallet never even returned a submission ack.
+  if (!record.txHash) {
+    if (stale) updateTx(record.id, { status: "failed", message: "No tx hash recorded" });
+    return;
+  }
+  try {
+    const receipt = await client.getTx(record.txHash);
+    if (receipt.success) {
+      updateTx(record.id, { status: "success" });
+    } else if (receipt.txHash) {
+      updateTx(record.id, {
+        status: "failed",
+        message: txFailureMessage(receipt.message || "Transaction failed")
+      });
+    } else if (stale) {
+      updateTx(record.id, { status: "failed", message: "Transaction not found on chain" });
+    }
+  } catch {
+    if (stale) updateTx(record.id, { status: "failed", message: "Could not reach RPC to confirm" });
+  }
 }
 
 /**
@@ -153,7 +150,7 @@ export async function track<T extends SendResultLike>(
   } catch (e) {
     updateTx(record.id, {
       status: "failed",
-      message: e instanceof Error ? e.message : String(e)
+      message: txFailureMessage(e)
     });
     throw e;
   }

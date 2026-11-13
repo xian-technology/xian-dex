@@ -30,6 +30,7 @@ import { fixedUnits, minimumAmountOutV2 } from "@xian-tech/dex";
 import { displayRate, positiveAmount, proportionalAmount } from "../lib/amounts";
 import { formatNumber } from "../lib/format";
 import { track } from "../lib/txHistory";
+import { txFailureMessage } from "../lib/txFailure";
 
 type SendResult = {
   accepted?: boolean | null;
@@ -216,7 +217,7 @@ export default function Liquidity() {
           toasts.update(id, {
             kind: "error",
             title: "Approval failed",
-            message: e instanceof Error ? e.message : String(e)
+            message: txFailureMessage(e)
           });
           return;
         }
@@ -238,7 +239,7 @@ export default function Liquidity() {
           toasts.update(id, {
             kind: "error",
             title: "Approval failed",
-            message: e instanceof Error ? e.message : String(e)
+            message: txFailureMessage(e)
           });
           return;
         }
@@ -281,7 +282,7 @@ export default function Liquidity() {
         toasts.update(id, {
           kind: "error",
           title: "Add liquidity failed",
-          message: e instanceof Error ? e.message : String(e)
+          message: txFailureMessage(e)
         });
       }
     } finally {
@@ -314,7 +315,7 @@ export default function Liquidity() {
           toasts.update(id, {
             kind: "error",
             title: "LP approval failed",
-            message: e instanceof Error ? e.message : String(e)
+            message: txFailureMessage(e)
           });
           return;
         }
@@ -358,7 +359,7 @@ export default function Liquidity() {
         toasts.update(id, {
           kind: "error",
           title: "Remove failed",
-          message: e instanceof Error ? e.message : String(e)
+          message: txFailureMessage(e)
         });
       }
     } finally {
