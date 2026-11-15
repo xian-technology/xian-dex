@@ -32,7 +32,7 @@
       "path": "src/con_dex_helper.py",
       "sha256": "fdb173f2761f963a682a046ed3d1f472d6398af6fc81644b6d6e765c3da66ed5",
       "deploy_order": 30,
-      "default_chi": 10000
+      "default_chi": 30000
     },
     {
       "name": "con_lp_token",
@@ -40,7 +40,7 @@
       "path": "src/con_lp_token.py",
       "sha256": "870de6a574261261f4e1ed18949880857c76b8f46fd3263795d55c999c86d0e3",
       "deploy_order": 100,
-      "default_chi": 10000,
+      "default_chi": 30000,
       "deploy_default": false
     }
   ]
