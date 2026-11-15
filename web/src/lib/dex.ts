@@ -222,7 +222,7 @@ export async function approveToken(
   return sendCall(planXianDexV2TokenApproval({ token, spender, amount }));
 }
 
-/** The simulated chi: exactly what the wallet supplies for the call. */
+/** The simulated chi of the call; the wallet supplies it plus a 2-chi margin. */
 export async function estimateChiFor(
   sender: string,
   contract: string,

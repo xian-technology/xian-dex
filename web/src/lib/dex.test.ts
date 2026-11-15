@@ -216,7 +216,7 @@ describe("DEX transaction helpers", () => {
 });
 
 describe("chi estimate", () => {
-  it("shows the chi the wallet supplies: exactly the simulated chi", async () => {
+  it("shows the simulated chi of the call", async () => {
     await expect(estimateChiFor("alice", DEX_ROUTER, "swapExactTokenForToken", {})).resolves.toBe(1_000);
     expect(estimateChi).toHaveBeenCalledWith({
       sender: "alice",

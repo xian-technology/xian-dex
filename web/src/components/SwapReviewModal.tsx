@@ -31,7 +31,7 @@ type EstimateRequest = Props["estimateRequest"];
 
 const CONFIRM_BUTTON_CLASS = { danger: "btn-danger", warning: "btn-primary", "": "btn-primary" };
 
-/** The simulated chi of the swap call: exactly what the wallet supplies. */
+/** The simulated chi of the swap call (the wallet adds a 2-chi margin). */
 function useChiEstimate(open: boolean, estimateRequest: EstimateRequest, account: string | null) {
   const [chi, setChi] = useState<number | null>(null);
   const [chiLoading, setChiLoading] = useState(false);
