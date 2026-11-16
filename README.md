@@ -235,6 +235,9 @@ sending transactions.
   registered as an LP token. `con_pairs` holds both pair reserves and LP tokens
   awaiting `burn`, so mixing the two would let `burn` pay out another pair's
   reserves.
+- LP-token recipients and configured authorities use lowercase for 64-character
+  hexadecimal account keys. The token rejects uppercase or mixed-case keys;
+  named destinations such as `con_pairs` retain their exact spelling.
 - Fee-on-transfer token flags are router-owner controlled.
 - Zero-fee signer accounts can be enabled with
   `set_zero_fee_trader(...)` for market makers or other approved flow.

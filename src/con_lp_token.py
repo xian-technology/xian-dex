@@ -49,12 +49,8 @@ def seed(
 ):
     if operator_address is None or operator_address == "":
         operator_address = ctx.caller
-    assert isinstance(operator_address, str) and operator_address != "", (
-        "operator_address must be a non-empty string."
-    )
-    assert isinstance(minter_address, str) and minter_address != "", (
-        "minter_address must be a non-empty string."
-    )
+    require_account(operator_address)
+    require_account(minter_address)
 
     operator.set(operator_address)
     minter.set(minter_address)
@@ -66,6 +62,16 @@ def seed(
     metadata["token_website"] = token_website
     metadata["precision"] = 8
     metadata["total_supply"] = 0
+
+
+def require_account(account: str):
+    assert isinstance(account, str) and account != "", "Account must be non-empty."
+    if len(account) != 64 or account == account.lower():
+        return
+    for character in account.lower():
+        if character not in "0123456789abcdef":
+            return
+    assert False, "Account key must use canonical lowercase hex."
 
 
 @export
@@ -104,6 +110,7 @@ def allowance(owner: str, spender: str):
 def transfer(amount: decimal, to: str):
     assert amount > 0, "Cannot send negative balances."
     assert balances[ctx.caller] >= amount, "Not enough coins to send."
+    require_account(to)
 
     balances[ctx.caller] -= amount
     balances[to] += amount
@@ -114,6 +121,7 @@ def transfer(amount: decimal, to: str):
 @export
 def approve(amount: decimal, to: str):
     assert amount >= 0, "Cannot approve negative balances."
+    require_account(to)
 
     approvals[ctx.caller, to] = amount
     ApproveEvent({"from": ctx.caller, "to": to, "amount": amount})
@@ -122,6 +130,8 @@ def approve(amount: decimal, to: str):
 @export
 def transfer_from(amount: decimal, to: str, main_account: str):
     assert amount > 0, "Cannot send negative balances."
+    require_account(to)
+    require_account(main_account)
     assert (
         approvals[main_account, ctx.caller] >= amount
     ), f"Not enough coins approved to send. You have {approvals[main_account, ctx.caller]} and are trying to spend {amount}"
@@ -138,6 +148,7 @@ def transfer_from(amount: decimal, to: str, main_account: str):
 def mint(amount: decimal, to: str):
     assert ctx.caller == minter.get(), "Only minter can mint tokens."
     assert amount > 0, "Cannot mint negative balances."
+    require_account(to)
 
     balances[to] += amount
     metadata["total_supply"] += amount

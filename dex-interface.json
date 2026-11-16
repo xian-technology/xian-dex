@@ -286,7 +286,7 @@
       "name": "con_lp_token",
       "role": "lp_token_template",
       "path": "src/con_lp_token.py",
-      "source_sha256": "870de6a574261261f4e1ed18949880857c76b8f46fd3263795d55c999c86d0e3",
+      "source_sha256": "262d343ca038efa7d4a089c258164e305232f66d2464a633aaf11affda0d2595",
       "deploy_default": false,
       "description": "XSC001-compatible LP-token template deployed once per pair.",
       "functions": [
@@ -307,7 +307,7 @@
         {"name": "Burn", "fields": [{"name": "from", "type": "str", "indexed": true}, {"name": "amount", "type": "int|decimal", "indexed": false}]}
       ],
       "errors": {
-        "messages": ["Cannot approve negative balances.", "Cannot burn negative balances.", "Cannot mint negative balances.", "Cannot send negative balances.", "Managed metadata cannot be changed.", "Negative supply.", "Not enough coins approved to send. You have {approvals[main_account, ctx.caller]} and are trying to spend {amount}", "Not enough coins to burn.", "Not enough coins to send.", "Only minter can burn tokens.", "Only minter can mint tokens.", "Only operator can set metadata.", "minter_address must be a non-empty string.", "operator_address must be a non-empty string."],
+        "messages": ["Account key must use canonical lowercase hex.", "Account must be non-empty.", "Cannot approve negative balances.", "Cannot burn negative balances.", "Cannot mint negative balances.", "Cannot send negative balances.", "Managed metadata cannot be changed.", "Negative supply.", "Not enough coins approved to send. You have {approvals[main_account, ctx.caller]} and are trying to spend {amount}", "Not enough coins to burn.", "Not enough coins to send.", "Only minter can burn tokens.", "Only minter can mint tokens.", "Only operator can set metadata."],
         "unlabeled_assertions": 0
       }
     }
