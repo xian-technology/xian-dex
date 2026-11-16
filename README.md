@@ -126,10 +126,11 @@ XIAN_WALLET_PRIVATE_KEY="$XIAN_PRIVATE_KEY" \
   uv run python scripts/bootstrap_dex.py --recipe local-demo
 ```
 
-The bootstrap uses xian-py's simulation-based automatic chi estimation by
-default, which avoids requiring the deployer to fund the much larger manifest
-ceilings. Pass `--chi-budget-mode fixed` when deliberately validating the
-bundle/bootstrap fixed budgets.
+The bootstrap supplies xian-py's simulated chi plus the SDK margin. The bundle's
+chi ceilings are manifest information; supplying a larger fixed budget would
+charge half of the unused chi. Supply the deployer key through
+`XIAN_DEX_DEPLOYER_PRIVATE_KEY`, `XIAN_WALLET_PRIVATE_KEY`, or
+`--deployer-key-file`.
 
 Read DEX state from Python:
 
