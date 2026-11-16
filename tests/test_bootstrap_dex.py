@@ -20,42 +20,67 @@ def _load_bootstrap_module() -> ModuleType:
 bootstrap = _load_bootstrap_module()
 
 
-def test_core_recipe_forwards_default_auto_chi_budget() -> None:
+def test_core_recipe_lets_the_stack_simulate_chi() -> None:
     args = bootstrap._build_parser().parse_args(["--recipe", "core"])
     command = bootstrap._build_command(args, Path("/workspace/xian-stack"))
 
-    mode_index = command.index("--chi-budget-mode")
-    assert command[mode_index + 1] == "auto"
+    assert "--chi-budget-mode" not in command
     assert "--deploy-helper" in command
     assert "--no-seed-demo-pool" in command
 
-def test_local_demo_recipe_forwards_fixed_chi_budget_opt_in() -> None:
+
+def test_local_demo_recipe_forwards_a_deployer_key_file_not_a_key() -> None:
     args = bootstrap._build_parser().parse_args(
-        ["--recipe", "local-demo", "--chi-budget-mode", "fixed"]
+        ["--recipe", "local-demo", "--deployer-key-file", "/secrets/deployer.key"]
     )
     command = bootstrap._build_command(args, Path("/workspace/xian-stack"))
 
-    mode_index = command.index("--chi-budget-mode")
-    assert command[mode_index + 1] == "fixed"
-    assert "--deploy-helper" in command
+    key_index = command.index("--deployer-key-file")
+    assert command[key_index + 1] == "/secrets/deployer.key"
     assert "--seed-demo-pool" in command
+    assert "--deployer-private-key" not in command
 
 
-def test_dry_run_summary_reports_chi_budget_mode(monkeypatch, capsys) -> None:
+def test_a_key_or_fixed_chi_on_the_command_line_is_refused(capsys) -> None:
+    # A key on the command line shows in ps and shell history; fixed budgets
+    # pay half of every unused chi (revision 14).
+    for removed in (["--deployer-private-key", "ab" * 32], ["--chi-budget-mode", "fixed"]):
+        try:
+            bootstrap._build_parser().parse_args(removed)
+        except SystemExit:
+            continue
+        raise AssertionError(f"{removed[0]} was accepted")
+
+
+def test_dry_run_summary_reports_the_stack_command(monkeypatch, capsys) -> None:
     stack_dir = Path(__file__).resolve().parents[2] / "xian-stack"
     monkeypatch.setattr(
         sys,
         "argv",
-        [
-            "bootstrap_dex.py",
-            "--stack-dir",
-            str(stack_dir),
-            "--chi-budget-mode",
-            "fixed",
-            "--dry-run",
-        ],
+        ["bootstrap_dex.py", "--stack-dir", str(stack_dir), "--dry-run"],
     )
 
     bootstrap.main()
 
-    assert json.loads(capsys.readouterr().out)["chi_budget_mode"] == "fixed"
+    summary = json.loads(capsys.readouterr().out)
+    assert "chi_budget_mode" not in summary
+    assert summary["command"][summary["command"].index("localnet-dex-bootstrap") - 1].endswith(
+        "backend.py"
+    )
+
+
+def test_a_wallet_key_from_the_environment_reaches_the_stack_only_by_environment(monkeypatch) -> None:
+    monkeypatch.delenv("XIAN_DEX_DEPLOYER_PRIVATE_KEY", raising=False)
+    monkeypatch.setenv("XIAN_WALLET_PRIVATE_KEY", "cd" * 32)
+
+    assert bootstrap._stack_environment()["XIAN_DEX_DEPLOYER_PRIVATE_KEY"] == "cd" * 32
+    args = bootstrap._build_parser().parse_args(["--recipe", "core"])
+    assert not any("cd" * 32 in part for part in bootstrap._build_command(args, Path("/s")))
+
+
+def test_the_key_file_path_comes_from_the_environment(monkeypatch) -> None:
+    monkeypatch.setenv("XIAN_DEX_DEPLOYER_KEY_FILE", "/secrets/deployer.key")
+
+    args = bootstrap._build_parser().parse_args([])
+
+    assert args.deployer_key_file == Path("/secrets/deployer.key")

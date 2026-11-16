@@ -62,6 +62,15 @@ def _resolve_stack_dir(explicit: Path | None) -> Path:
     )
 
 
+def _stack_environment() -> dict[str, str]:
+    """The stack bootstrap's environment: a deployer key travels here, never in argv."""
+    environment = dict(os.environ)
+    wallet_key = _env_str("XIAN_DEX_DEPLOYER_PRIVATE_KEY", "XIAN_WALLET_PRIVATE_KEY")
+    if wallet_key is not None:
+        environment["XIAN_DEX_DEPLOYER_PRIVATE_KEY"] = wallet_key
+    return environment
+
+
 def _bool_arg(name: str, value: bool) -> str:
     return f"--{name}" if value else f"--no-{name}"
 
@@ -80,8 +89,6 @@ def _build_command(args: argparse.Namespace, stack_dir: Path) -> list[str]:
         _bool_arg("seed-demo-pool", recipe["seed_demo_pool"]),
         _bool_arg("top-up-liquidity", recipe["top_up_liquidity"] or args.top_up_liquidity),
         _bool_arg("emit-test-swap", recipe["emit_test_swap"] or args.emit_test_swap),
-        "--chi-budget-mode",
-        args.chi_budget_mode,
     ]
     if args.dex_contracts_dir is not None:
         command.extend(
@@ -93,8 +100,8 @@ def _build_command(args: argparse.Namespace, stack_dir: Path) -> list[str]:
         command.extend(["--rpc-url", args.rpc_url])
     if args.chain_id is not None:
         command.extend(["--chain-id", args.chain_id])
-    if args.deployer_private_key is not None:
-        command.extend(["--deployer-private-key", args.deployer_private_key])
+    if args.deployer_key_file is not None:
+        command.extend(["--deployer-key-file", str(args.deployer_key_file.expanduser().resolve())])
     return command
 
 
@@ -134,9 +141,16 @@ def _build_parser() -> argparse.ArgumentParser:
         "--chain-id",
         default=_env_str("XIAN_DEX_BOOTSTRAP_CHAIN_ID", "XIAN_CHAIN_ID"),
     )
+    key_file = _env_str("XIAN_DEX_DEPLOYER_KEY_FILE")
     parser.add_argument(
-        "--deployer-private-key",
-        default=_env_str("XIAN_DEX_DEPLOYER_PRIVATE_KEY", "XIAN_WALLET_PRIVATE_KEY"),
+        "--deployer-key-file",
+        type=Path,
+        default=Path(key_file) if key_file is not None else None,
+        help=(
+            "file holding the deployer's private key; otherwise the stack reads "
+            "XIAN_DEX_DEPLOYER_PRIVATE_KEY (or XIAN_WALLET_PRIVATE_KEY) from the "
+            "environment or uses the local stack keys. Never a key on the command line."
+        ),
     )
     parser.add_argument(
         "--top-up-liquidity",
@@ -147,15 +161,6 @@ def _build_parser() -> argparse.ArgumentParser:
         "--emit-test-swap",
         action="store_true",
         help="emit a small local demo swap after installation",
-    )
-    parser.add_argument(
-        "--chi-budget-mode",
-        choices=("auto", "fixed"),
-        default="auto",
-        help=(
-            "use xian-py simulation-based chi estimation (default), or the "
-            "bundle/bootstrap fixed budgets"
-        ),
     )
     parser.add_argument(
         "--dry-run",
@@ -174,7 +179,6 @@ def main() -> None:
         "product": "dex",
         "recipe": args.recipe,
         "stack_dir": str(stack_dir),
-        "chi_budget_mode": args.chi_budget_mode,
         "command": command,
     }
     if args.dex_contracts_dir is not None:
@@ -189,6 +193,7 @@ def main() -> None:
     result = subprocess.run(
         command,
         cwd=stack_dir,
+        env=_stack_environment(),
         check=True,
         capture_output=True,
         text=True,
