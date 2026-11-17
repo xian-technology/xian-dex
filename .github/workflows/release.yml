@@ -21,7 +21,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: ${{ github.repository_owner }}/xian-js
-          ref: 13011470c8c8d2c1faf02525795d5390fbf900ae
+          ref: 79d02e36bf02e9857f79d13d20dc0b5c33aef427
           path: xian-js
 
       - name: Check out pinned xian-stack
