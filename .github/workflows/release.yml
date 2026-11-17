@@ -24,6 +24,25 @@ jobs:
           ref: 79d02e36bf02e9857f79d13d20dc0b5c33aef427
           path: xian-js
 
+      - name: Resolve pinned SDK compiler source
+        id: compiler
+        working-directory: xian-js
+        run: |
+          node <<'NODE'
+          const fs = require("node:fs");
+          const manifest = JSON.parse(fs.readFileSync("release-manifest.json", "utf8"));
+          const ref = manifest.components["xian-contracting"].ref;
+          if (!/^[0-9a-f]{40}$/.test(ref)) throw new Error("Compiler source must be an immutable SHA");
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `ref=${ref}\n`);
+          NODE
+
+      - name: Check out pinned SDK compiler source
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ github.repository_owner }}/xian-contracting
+          ref: ${{ steps.compiler.outputs.ref }}
+          path: xian-contracting
+
       - name: Check out pinned xian-stack
         uses: actions/checkout@v7
         with:
