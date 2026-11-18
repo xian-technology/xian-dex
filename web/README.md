@@ -110,8 +110,9 @@ src/
 
 ## Notes on the contracts
 
-- `con_dex` is the router; `con_pairs` is the factory + pair store +
-  LP-token ledger. The frontend uses both directly.
+- `con_dex` is the router; `con_pairs` is the factory and reserve store. Each
+  pair's bound LP-token contract owns its account balances and approvals; the
+  frontend reads that token for LP positions.
 - `removeLiquidity` requires the user to first call
   `<lpToken>.approve(amount, to="con_dex")` on the pair-bound LP token so the
   router can pull LP from them. Resolve `<lpToken>` from

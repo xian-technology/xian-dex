@@ -24,7 +24,8 @@ flowchart LR
   Web["SnakX web frontend"] -->|reads through SDK| Chain
   Web -->|writes through wallet provider| Wallet["Browser wallet"]
   Wallet --> Chain
-  Events["DEX events"] --> Automation["xian-dex-automation"]
+  Chain --> Events["DEX events"]
+  Events --> Automation["xian-dex-automation"]
 ```
 
 ## Status
@@ -141,7 +142,7 @@ with Xian("http://127.0.0.1:26657") as client:
     pair = client.contract("con_pairs").call(
         "pairFor",
         tokenA="currency",
-        tokenB="demo_token",
+        tokenB="con_dex_demo_token",
     )
     reserves = client.contract("con_pairs").call("getReserves", pair=pair)
     quote = client.contract("con_dex").call(
@@ -161,7 +162,7 @@ import { XianClient } from "@xian-tech/client";
 const client = new XianClient({ rpcUrl: "http://127.0.0.1:26657" });
 const pair = await client.contract("con_pairs").call("pairFor", {
   tokenA: "currency",
-  tokenB: "demo_token",
+  tokenB: "con_dex_demo_token",
 });
 const quote = await client.contract("con_dex").call("getAmountsOut", {
   amountIn: 10,
@@ -198,8 +199,8 @@ sending transactions.
 ## Key Directories
 
 - `src/` — contract sources:
-  - `con_pairs.py` — pair factory, reserve bookkeeping, and LP balance
-    logic.
+  - `con_pairs.py` — pair factory, reserve bookkeeping, and LP mint/burn routing
+    (account balances belong to the pair-bound LP token).
   - `con_dex.py` — router-style liquidity and swap entrypoints.
   - `con_dex_helper.py` — convenience helper around the router for
     single-pair buy/sell flows.
