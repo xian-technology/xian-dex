@@ -21,12 +21,17 @@ def pair_for(token_x: str, token_y: str):
 
 def pull_and_approve(token: str, amount: decimal):
     token_contract = importlib.import_module(token)
+    balance_before = token_contract.balance_of(address=ctx.this) or 0
     token_contract.transfer_from(
         amount=amount,
         to=ctx.this,
         main_account=ctx.caller
     )
-    token_contract.approve(amount=amount, to=DEX_CONTRACT)
+    balance_after = token_contract.balance_of(address=ctx.this) or 0
+    received = balance_after - balance_before
+    assert received > 0, "No input tokens received"
+    token_contract.approve(amount=received, to=DEX_CONTRACT)
+    return received
 
 
 @export
@@ -47,7 +52,8 @@ def buy(
     dex = importlib.import_module(DEX_CONTRACT)
     dex_pairs = importlib.import_module(DEX_PAIRS)
     reserve_0, reserve_1, not_used = dex_pairs.getReserves(pair_id)
-    if pairs[pair_id, "token0"] == buy_token:
+    buy_is_token0 = pairs[pair_id, "token0"] == buy_token
+    if buy_is_token0:
         reserve_buy, reserve_sell = reserve_0, reserve_1
     else:
         reserve_buy, reserve_sell = reserve_1, reserve_0
@@ -65,17 +71,19 @@ def buy(
         f"Required input {input_amount} exceeds max_input {max_input}"
     )
 
-    pull_and_approve(sell_token, input_amount)
-    # The input is quoted against the reserves this swap executes on, so the
-    # pool releases `amount`; buy-token transfer taxes are not the pool's to bound.
+    received_input = pull_and_approve(sell_token, input_amount)
     output_amount = dex.swapExactTokenForTokenSupportingFeeOnTransferTokens(
-        amountIn=input_amount,
+        amountIn=received_input,
         amountOutMin=0,
         pair=pair_id,
         src=sell_token,
         to=ctx.caller,
         deadline=deadline
     )
+    # Check gross pool output independently of any tax charged to the recipient.
+    after_0, after_1, not_used = dex_pairs.getReserves(pair_id)
+    reserve_after = after_0 if buy_is_token0 else after_1
+    assert reserve_buy - reserve_after >= amount, "Pool output below requested amount"
 
     return input_amount, output_amount
 
@@ -94,11 +102,11 @@ def sell(
     require_trade_window(deadline)
 
     pair_id = pair_for(buy_token, sell_token)
-    pull_and_approve(sell_token, amount)
+    received_input = pull_and_approve(sell_token, amount)
     output_amount = importlib.import_module(
         DEX_CONTRACT
     ).swapExactTokenForTokenSupportingFeeOnTransferTokens(
-        amountIn=amount,
+        amountIn=received_input,
         amountOutMin=min_out,
         pair=pair_id,
         src=sell_token,

@@ -35,7 +35,7 @@
       "minter_only": "Only the configured con_pairs minter may mint or burn canonical LP tokens.",
       "owner_only": "Only the contract owner may submit this transaction.",
       "path": "Validate that each pair exists and that adjacent pairs connect in the declared order.",
-      "precision": "Normalize amounts to each token's declared non-negative integer precision.",
+      "precision": "Round settlement amounts down to the token precision. Compare actual receipts against the caller's exact minimums.",
       "router_only": "Only con_dex may call this pair-accounting or router-fee primitive.",
       "signer_fee_tier": "Quotes depend on ctx.signer; quote and submit with the same signer identity.",
       "slippage": "Set minimum received amounts from a fresh quote and an explicit risk limit."
@@ -221,7 +221,7 @@
       "name": "con_dex",
       "role": "router",
       "path": "src/con_dex.py",
-      "source_sha256": "6d515b2a195f149dbf1eab336484d49fda652d528a51e3f6eedc70db1540dfed",
+      "source_sha256": "3499890ee69736e13a43de8eb0f4def61109e0606720bfdcf2988b1096a4fd5b",
       "deploy_default": true,
       "description": "Preferred router for liquidity, quotes, and single- or multi-hop swaps.",
       "functions": [
@@ -269,7 +269,7 @@
       "name": "con_dex_helper",
       "role": "helper",
       "path": "src/con_dex_helper.py",
-      "source_sha256": "fdb173f2761f963a682a046ed3d1f472d6398af6fc81644b6d6e765c3da66ed5",
+      "source_sha256": "5df99437489a8fa5f2791cfd9e252664eb85c720a8ebc86884fe268dc20fd77e",
       "deploy_default": true,
       "description": "Single-pair buy and sell convenience entrypoints.",
       "functions": [
@@ -278,7 +278,7 @@
       ],
       "events": [],
       "errors": {
-        "messages": ["Amount must be positive", "Deadline is required", "Pair does not exist", "Required input {input_amount} exceeds max_input {max_input}", "Trade deadline has expired", "max_input must be positive", "min_out must be positive"],
+        "messages": ["Amount must be positive", "Deadline is required", "No input tokens received", "Pair does not exist", "Pool output below requested amount", "Required input {input_amount} exceeds max_input {max_input}", "Trade deadline has expired", "max_input must be positive", "min_out must be positive"],
         "unlabeled_assertions": 0
       }
     },

@@ -9,6 +9,8 @@ Current coverage:
 - liquidity add/remove against a fee-on-transfer token
 - caller-order amount returns
 - minimum amount checks on actual received amounts
+- exact signed minimums across integer-precision liquidity, single-pair swaps,
+  and multi-hop swaps, with atomic rollback on shortfalls
 - single-path fee-on-transfer swap return values and rejection of a source
   token outside the pair
 - unsolicited token transfers not being credited to a pair
@@ -21,6 +23,8 @@ Current coverage:
 - zero-fee trader permissions, toggling, and better quote/execution outcomes
 - plain-route rejection for flagged fee-on-transfer tokens
 - helper absolute-deadline enforcement and signer-supplied price bounds
+- helper receipt accounting for taxed inputs, and rollback of buys that do not
+  meet the requested gross pool output
 - `getAmountIn` as the exact, minimal inverse of the router quote across
   random reserves, fee tiers and token precisions
 - helper quote behavior for zero-fee trader accounts

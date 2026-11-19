@@ -251,17 +251,23 @@ sending transactions.
   supporting-fee router path instead.
 - Tokens that expose `get_metadata().precision` route through the DEX with
   precision-aware amount normalization, including integer-precision public
-  balances such as `shielded-note-token`.
+  balances such as `shielded-note-token`. Settlement amounts round down to the
+  token grid. The router compares swaps and liquidity receipts with the signed
+  minimums exactly as supplied and returns actual swap receipts.
 - `con_dex_helper.py` requires an explicit absolute `deadline`; relative
   minute-based guards cannot provide pre-inclusion expiry because they are
   computed from on-chain `now` at execution time.
 - Helper price bounds are signed, not derived on-chain:
-  `buy(buy_token, sell_token, amount, max_input, deadline)` quotes the input
-  needed for exactly `amount` against the executing reserves, reverts when it
-  exceeds `max_input`, and pulls only that input;
+  `buy(buy_token, sell_token, amount, max_input, deadline)` quotes and pulls
+  the minimum input needed for at least `amount` from the pool, capped by
+  `max_input`. It reverts if the actual pool output falls short. Output token
+  fees can reduce what the recipient receives;
   `sell(sell_token, buy_token, amount, min_out, deadline)` reverts when the
   recipient receives less than `min_out`. A bound computed inside the
   transaction would follow a manipulated price and protect nothing.
+- The helper approves only the input credited to it for that call. When the
+  input token charges fees on both transfer legs, use the router directly to
+  avoid the extra transfer or use helper `sell` with a recipient minimum.
 - `getAmountIn(amountOut, reserveIn, reserveOut, feeBps, tokenIn, tokenOut)`
   is the exact inverse of the router's exact-input quote: it returns the
   smallest input on `tokenIn`'s precision grid whose quote, floored to

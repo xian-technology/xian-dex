@@ -1,3 +1,4 @@
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -7,10 +8,11 @@ from xian_runtime_types.decimal import ContractingDecimal
 from xian_runtime_types.time import Datetime
 
 ROOT = Path(__file__).resolve().parents[1]
-DEX_PAIRS_PATH = ROOT / "src" / "con_pairs.py"
-DEX_ROUTER_PATH = ROOT / "src" / "con_dex.py"
-DEX_HELPER_PATH = ROOT / "src" / "con_dex_helper.py"
-LP_TOKEN_PATH = ROOT / "src" / "con_lp_token.py"
+DEX_SOURCE_ROOT = Path(os.environ.get("XIAN_DEX_SRC_DIR", ROOT / "src"))
+DEX_PAIRS_PATH = DEX_SOURCE_ROOT / "con_pairs.py"
+DEX_ROUTER_PATH = DEX_SOURCE_ROOT / "con_dex.py"
+DEX_HELPER_PATH = DEX_SOURCE_ROOT / "con_dex_helper.py"
+LP_TOKEN_PATH = DEX_SOURCE_ROOT / "con_lp_token.py"
 
 PLAIN_TOKEN = """
 balances = Hash(default_value=0)
@@ -195,6 +197,80 @@ class TestDexHelper(unittest.TestCase):
                 signer=self.trader,
                 environment={"now": self.now},
             )
+
+    def bootstrap_taxed_source(self):
+        taxed_source = PLAIN_TOKEN.replace(
+            "balances[to] += amount", "balances[to] += amount * 0.95"
+        ).replace("return balances[address]", "return balances[address] or None")
+        self.client.submit(taxed_source, name="con_taxed")
+        token = self.client.get_contract_proxy("con_taxed")
+        token.transfer(amount=5000, to=self.trader)
+        token.approve(amount=5000, to="con_dex_helper", signer=self.trader)
+        token.approve(amount=1000, to="con_dex")
+        self.currency.approve(amount=1000, to="con_dex")
+        self.submit_lp_token("con_lp_taxed")
+        self.pairs.registerLpToken(tokenA="con_taxed", tokenB="currency", lpToken="con_lp_taxed")
+        pair = self.pairs.createPair(tokenA="con_taxed", tokenB="currency")
+        self.dex.addLiquidity(
+            tokenA="con_taxed",
+            tokenB="currency",
+            amountADesired=1000,
+            amountBDesired=1000,
+            amountAMin=950,
+            amountBMin=1000,
+            to=self.lp,
+            deadline=self.deadline,
+            environment={"now": self.now},
+        )
+        return token, pair
+
+    def assert_taxed_source_sale(self, seed_helper):
+        token, _ = self.bootstrap_taxed_source()
+        if seed_helper:
+            token.transfer(amount=50, to="con_dex_helper")
+        helper_before = token.balance_of(address="con_dex_helper")
+        trader_before = token.balance_of(address=self.trader)
+        expected = self.dex.getAmountOut(
+            amountIn=ContractingDecimal("90.25"), reserveIn=950, reserveOut=1000
+        )
+        spent, received = self.helper.sell(
+            sell_token="con_taxed",
+            buy_token="currency",
+            amount=100,
+            min_out=1,
+            deadline=self.deadline,
+            signer=self.trader,
+            environment={"now": self.now},
+        )
+        self.assertEqual(spent, 100)
+        self.assertAmountEqual(received, expected)
+        self.assertEqual(token.balance_of(address=self.trader), trader_before - 100)
+        self.assertEqual(token.balance_of(address="con_dex_helper"), helper_before)
+        self.assertEqual(token.approved["con_dex_helper", "con_dex"], 0)
+
+    def test_helper_sell_accepts_taxed_source_without_stranded_funds(self):
+        self.assert_taxed_source_sale(seed_helper=False)
+
+    def test_helper_sell_preserves_existing_helper_balance(self):
+        self.assert_taxed_source_sale(seed_helper=True)
+
+    def test_helper_buy_rolls_back_if_taxed_input_cannot_fund_requested_output(self):
+        token, pair = self.bootstrap_taxed_source()
+        before = token.balance_of(address=self.trader)
+        reserves = self.pairs.getReserves(pair=pair)
+        with self.assertRaisesRegex(AssertionError, "Pool output below requested amount"):
+            self.helper.buy(
+                buy_token="currency",
+                sell_token="con_taxed",
+                amount=50,
+                max_input=100,
+                deadline=self.deadline,
+                signer=self.trader,
+                environment={"now": self.now},
+            )
+        self.assertEqual(token.balance_of(address=self.trader), before)
+        self.assertEqual(token.approved[self.trader, "con_dex_helper"], 5000)
+        self.assertEqual(self.pairs.getReserves(pair=pair), reserves)
 
     def test_helper_requires_positive_signer_bounds(self):
         with self.assertRaisesRegex(AssertionError, "max_input must be positive"):

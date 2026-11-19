@@ -17,9 +17,10 @@ XIAN_CONTRACTS_ROOT = Path(
         WORKSPACE_ROOT / "xian-contracts" / "contracts",
     )
 ).expanduser()
-DEX_PAIRS_PATH = ROOT / "src" / "con_pairs.py"
-DEX_ROUTER_PATH = ROOT / "src" / "con_dex.py"
-LP_TOKEN_PATH = ROOT / "src" / "con_lp_token.py"
+DEX_SOURCE_ROOT = Path(os.environ.get("XIAN_DEX_SRC_DIR", ROOT / "src"))
+DEX_PAIRS_PATH = DEX_SOURCE_ROOT / "con_pairs.py"
+DEX_ROUTER_PATH = DEX_SOURCE_ROOT / "con_dex.py"
+LP_TOKEN_PATH = DEX_SOURCE_ROOT / "con_lp_token.py"
 XSC001_PATH = XIAN_CONTRACTS_ROOT / "xsc001" / "src" / "con_xsc001.py"
 SHIELDED_NOTE_TOKEN_PATH = (
     XIAN_CONTRACTS_ROOT
@@ -300,6 +301,158 @@ class TestDexRouter(unittest.TestCase):
             "con_lp_currency_tax",
         )
         return lp_token, pair_id
+
+    def bootstrap_integer_pair(self):
+        self.client.submit(
+            PLAIN_TOKEN + '\n@export\ndef get_metadata():\n    return {"precision": 0}\n',
+            name="con_integer",
+        )
+        token = self.client.get_contract_proxy("con_integer")
+        for account in (self.lp, self.trader):
+            token.transfer(amount=5000, to=account)
+            token.approve(amount=5000, to="con_dex", signer=account)
+        pair, lp_token, _ = self.create_pair("con_integer", "currency")
+        added = self.dex.addLiquidity(
+            tokenA="con_integer",
+            tokenB="currency",
+            amountADesired=1000,
+            amountBDesired=1000,
+            amountAMin=1000,
+            amountBMin=1000,
+            to=self.lp,
+            deadline=self.deadline,
+            signer=self.lp,
+            environment={"now": self.now},
+        )
+        return token, pair, lp_token, added[2]
+
+    def test_all_swap_routes_preserve_fractional_minimum_for_integer_output(self):
+        token, pair, _, _ = self.bootstrap_integer_pair()
+        bridge, _, _ = self.create_pair("con_plain_mid", "currency")
+        self.dex.addLiquidity(
+            tokenA="con_plain_mid",
+            tokenB="currency",
+            amountADesired=1000,
+            amountBDesired=1000,
+            amountAMin=1000,
+            amountBMin=1000,
+            to=self.lp,
+            deadline=self.deadline,
+            signer=self.lp,
+            environment={"now": self.now},
+        )
+        before = token.balance_of(address=self.trader)
+        reserves = self.pairs.getReserves(pair=pair)
+        bridge_reserves = self.pairs.getReserves(pair=bridge)
+        for method, route, source in (
+            ("swapExactTokenForToken", {"pair": pair}, "currency"),
+            ("swapExactTokenForTokenSupportingFeeOnTransferTokens", {"pair": pair}, "currency"),
+            ("swapExactTokensForTokens", {"path": [bridge, pair]}, "con_plain_mid"),
+            (
+                "swapExactTokensForTokensSupportingFeeOnTransferTokens",
+                {"path": [bridge, pair]},
+                "con_plain_mid",
+            ),
+        ):
+            with self.subTest(method=method):
+                with self.assertRaisesRegex(AssertionError, "INSUFFICIENT_OUTPUT_AMOUNT"):
+                    getattr(self.dex, method)(
+                        amountIn=2,
+                        amountOutMin=ContractingDecimal("1.5"),
+                        src=source,
+                        to=self.trader,
+                        deadline=self.deadline,
+                        signer=self.trader,
+                        environment={"now": self.now},
+                        **route,
+                    )
+                self.assertEqual(token.balance_of(address=self.trader), before)
+                self.assertEqual(self.pairs.getReserves(pair=pair), reserves)
+                self.assertEqual(self.pairs.getReserves(pair=bridge), bridge_reserves)
+
+    def test_add_liquidity_preserves_fractional_minimum_for_integer_token(self):
+        token, _, _, _ = self.bootstrap_integer_pair()
+        before = token.balance_of(address=self.lp)
+        with self.assertRaisesRegex(AssertionError, "INSUFFICIENT_A_AMOUNT"):
+            self.dex.addLiquidity(
+                tokenA="con_integer",
+                tokenB="currency",
+                amountADesired=10,
+                amountBDesired=10,
+                amountAMin=ContractingDecimal("10.5"),
+                amountBMin=10,
+                to=self.lp,
+                deadline=self.deadline,
+                signer=self.lp,
+                environment={"now": self.now},
+            )
+        self.assertEqual(token.balance_of(address=self.lp), before)
+
+    def test_remove_liquidity_preserves_fractional_minimum_for_integer_token(self):
+        _, _, lp_token, liquidity = self.bootstrap_integer_pair()
+        lp_token.approve(amount=liquidity, to="con_dex", signer=self.lp)
+        before = lp_token.balance_of(address=self.lp)
+        with self.assertRaisesRegex(AssertionError, "INSUFFICIENT_A_AMOUNT"):
+            self.dex.removeLiquidity(
+                tokenA="con_integer",
+                tokenB="currency",
+                liquidity=liquidity,
+                amountAMin=ContractingDecimal("999.5"),
+                amountBMin=0,
+                to=self.lp,
+                deadline=self.deadline,
+                signer=self.lp,
+                environment={"now": self.now},
+            )
+        self.assertEqual(lp_token.balance_of(address=self.lp), before)
+
+    def test_plain_swap_checks_actual_recipient_minimum(self):
+        _, pair = self.bootstrap_pair()
+        added = self.dex.addLiquidity(
+            tokenA="currency",
+            tokenB="con_tax_token",
+            amountADesired=1000,
+            amountBDesired=1000,
+            amountAMin=1000,
+            amountBMin=950,
+            to=self.lp,
+            deadline=self.deadline,
+            signer=self.lp,
+            environment={"now": self.now},
+        )
+        gross = self.dex.getAmountOut(amountIn=100, reserveIn=added[0], reserveOut=added[1])
+        before = self.tax.balance_of(address=self.trader)
+        reserves = self.pairs.getReserves(pair=pair)
+        for method, route in (
+            (self.dex.swapExactTokenForToken, {"pair": pair}),
+            (self.dex.swapExactTokensForTokens, {"path": [pair]}),
+        ):
+            with self.assertRaisesRegex(AssertionError, "INSUFFICIENT_OUTPUT_AMOUNT"):
+                method(
+                    amountIn=100,
+                    amountOutMin=gross,
+                    src="currency",
+                    to=self.trader,
+                    deadline=self.deadline,
+                    signer=self.trader,
+                    environment={"now": self.now},
+                    **route,
+                )
+            self.assertEqual(self.tax.balance_of(address=self.trader), before)
+            self.assertEqual(self.pairs.getReserves(pair=pair), reserves)
+
+    def test_supporting_fee_swap_rejects_empty_path(self):
+        with self.assertRaisesRegex(AssertionError, "INVALID_PATH"):
+            self.dex.swapExactTokensForTokensSupportingFeeOnTransferTokens(
+                amountIn=100,
+                amountOutMin=0,
+                path=[],
+                src="currency",
+                to=self.trader,
+                deadline=self.deadline,
+                signer=self.trader,
+                environment={"now": self.now},
+            )
 
     def bootstrap_shielded_public_tokens(self):
         self.client.submit(ZK_REGISTRY_STUB, name="zk_registry")
