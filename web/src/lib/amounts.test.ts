@@ -5,6 +5,7 @@ describe("V2 transaction amounts", () => {
   it("preserves the last decimal place and integers larger than 2^53", () => {
     const exact = "9007199254740993.000000000000000000000000000001";
     expect(positiveAmount(chainAmount(exact))).toBe(exact);
+    expect(chainAmount({ __fixed__: exact })).toBe(exact);
     expect(chainAmount(42)).toBe("42");
     expect(chainAmount(null)).toBe("0");
     expect(chainAmount(9007199254740993n)).toBe("9007199254740993");

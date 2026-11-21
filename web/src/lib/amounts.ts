@@ -1,4 +1,4 @@
-import { fixed } from "@xian-tech/client";
+import { fixed, fixedValueText } from "@xian-tech/client";
 import { fixedText, fixedUnits, minimumAmountOutV2 } from "@xian-tech/dex";
 
 const SCALE = 10n ** 30n;
@@ -6,6 +6,8 @@ const SCALE = 10n ** 30n;
 /** Decode V2 RPC balances without allowing a binary float into a transaction. */
 export function chainAmount(value: unknown): string {
   if (value == null) return "0";
+  const decimal = fixedValueText(value);
+  if (decimal !== undefined) return fixed(decimal).__fixed__;
   if (typeof value === "string") return fixed(value).__fixed__;
   if (typeof value === "bigint" || Number.isSafeInteger(value)) {
     return fixed(String(value)).__fixed__;
