@@ -12,8 +12,9 @@ const getState = vi.hoisted(() => vi.fn(
 
 vi.mock("./wallet", () => ({ sendCall }));
 const estimateChi = vi.hoisted(() => vi.fn(async () => ({ estimated: 1_000, simulation: {} })));
+const getRpcEpoch = vi.hoisted(() => vi.fn(() => 0));
 
-vi.mock("./xian", () => ({ getClient: () => ({ getState, estimateChi }) }));
+vi.mock("./xian", () => ({ getClient: () => ({ getState, estimateChi }), getRpcEpoch }));
 vi.mock("./tokens", () => ({ getTokenInfo: async () => ({ precision: 8 }) }));
 
 import { DEX_ROUTER } from "./constants";
@@ -36,6 +37,7 @@ describe("DEX transaction helpers", () => {
     sendCall.mockClear();
     getState.mockReset();
     getState.mockResolvedValue(null);
+    getRpcEpoch.mockReturnValue(0);
     invalidatePairCache();
   });
 
@@ -172,6 +174,48 @@ describe("DEX transaction helpers", () => {
     expect(quote?.path).toEqual([1, 2]);
     expect(quote?.hops.map((hop) => hop.toToken)).toEqual(["b", "c"]);
     expect(quote?.amountOut).toBe("165.79238659");
+  });
+
+  it.each(["manual refresh", "RPC switch"])(
+    "keeps the current swap quote when an older pair read completes after %s",
+    async (change) => {
+      let finishOldRead!: (value: number) => void;
+      const oldReserve = new Promise<number>((resolve) => { finishOldRead = resolve; });
+      getState.mockImplementation(async (_contract, key, args) => {
+        if (key === "pairs_num") return 1;
+        const values: Record<string, string | number | Promise<number>> = {
+          token0: "a", token1: "b", reserve0: 1_000, reserve1: 2_000
+        };
+        return values[args?.[1] ?? ""] ?? null;
+      });
+      getState
+        .mockResolvedValueOnce(1)
+        .mockResolvedValueOnce("a")
+        .mockResolvedValueOnce("b")
+        .mockResolvedValueOnce(1_000)
+        .mockReturnValueOnce(oldReserve);
+      const previous = quoteSwap("a", "b", "100", 30);
+      await vi.waitFor(() => {
+        expect(getState).toHaveBeenCalledWith("con_pairs", "pairs", ["1", "reserve1"]);
+      });
+
+      if (change === "RPC switch") getRpcEpoch.mockReturnValue(1);
+      else invalidatePairCache();
+
+      const current = await quoteSwap("a", "b", "100", 30);
+      finishOldRead(1_000);
+      const old = await previous;
+      expect(current?.amountOut).toBe("181.32217877");
+      expect(old?.amountOut).toBe("90.66108938");
+      await expect(quoteSwap("a", "b", "100", 30)).resolves.toEqual(current);
+    }
+  );
+
+  it("retries a pair read when the RPC temporarily fails", async () => {
+    getState.mockRejectedValueOnce(new Error("offline")).mockResolvedValueOnce(0);
+
+    await expect(quoteSwap("a", "b", "100", 30)).rejects.toThrow("offline");
+    await expect(quoteSwap("a", "b", "100", 30)).resolves.toBeNull();
   });
 
   it("approves the router on the pair's bound LP token contract", async () => {

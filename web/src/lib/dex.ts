@@ -10,7 +10,7 @@ import {
   type XianDexV2SwapPlanRequest,
   type XianDatetime
 } from "@xian-tech/dex";
-import { getClient } from "./xian";
+import { getClient, getRpcEpoch } from "./xian";
 import { sendCall as walletSendCall, type CallIntent, type SendCallResult } from "./wallet";
 import { txFailureMessage } from "./txFailure";
 import {
@@ -174,17 +174,23 @@ export async function findDirectRoute(
 
 // ── Pair index (for multi-hop routing) ─────────────────────────
 
-let pairCache: { ts: number; pairs: PairInfo[] } | null = null;
+let pairCache: { ts: number; epoch: number; pairs: Promise<PairInfo[]> } | null = null;
 const PAIR_CACHE_MS = 30_000;
 
 export async function getPairsCached(force = false): Promise<PairInfo[]> {
   const now = Date.now();
-  if (!force && pairCache && now - pairCache.ts < PAIR_CACHE_MS) {
+  const epoch = getRpcEpoch();
+  if (!force && pairCache?.epoch === epoch && now - pairCache.ts < PAIR_CACHE_MS) {
     return pairCache.pairs;
   }
-  const pairs = await listAllPairs();
-  pairCache = { ts: now, pairs };
-  return pairs;
+  const request = { ts: now, epoch, pairs: listAllPairs() };
+  pairCache = request;
+  try {
+    return await request.pairs;
+  } catch (error) {
+    if (pairCache === request) pairCache = null;
+    throw error;
+  }
 }
 
 export function invalidatePairCache(): void {
