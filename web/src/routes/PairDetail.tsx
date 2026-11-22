@@ -2,12 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, RefreshCw } from "lucide-react";
 import { TokenIcon } from "../components/TokenIcon";
-import { CandleChart } from "../components/CandleChart";
+import { CandleChart, formatCandleTime } from "../components/CandleChart";
 import {
   CANDLE_INTERVALS,
   DEFAULT_CANDLE_INTERVAL,
-  connectCandleOpens,
-  fillCandleGaps,
   intervalSeconds,
   invertCandles
 } from "../lib/candles";
@@ -40,14 +38,10 @@ export default function PairDetail() {
   const [intervalKey, setIntervalKey] = useState(DEFAULT_CANDLE_INTERVAL);
   const candleFeed = useCandles(pairId, intervalKey);
 
-  // Raw candles are token1-per-token0; orient and make the tape continuous.
-  const candles = useMemo(() => {
-    const oriented = inverted ? invertCandles(candleFeed.candles) : candleFeed.candles;
-    return fillCandleGaps(
-      connectCandleOpens(oriented),
-      intervalSeconds(intervalKey)
-    );
-  }, [candleFeed.candles, inverted, intervalKey]);
+  const candles = useMemo(
+    () => inverted ? invertCandles(candleFeed.candles) : candleFeed.candles,
+    [candleFeed.candles, inverted]
+  );
 
   useEffect(() => {
     if (!Number.isFinite(pairId) || pairId <= 0) return;
@@ -156,13 +150,14 @@ export default function PairDetail() {
                 <button
                   key={i.key}
                   className={`chip${i.key === intervalKey ? " chip-active" : ""}`}
+                  aria-pressed={i.key === intervalKey}
                   onClick={() => setIntervalKey(i.key)}
                 >
                   {i.label}
                 </button>
               ))}
             </div>
-            <button className="chip" onClick={() => setInverted((v) => !v)}>
+            <button className="chip" aria-pressed={inverted} onClick={() => setInverted((v) => !v)}>
               Invert
             </button>
           </div>
@@ -187,15 +182,43 @@ export default function PairDetail() {
             <span className="muted small">
               Vol {formatCompact(windowVolume)} {baseToken.symbol}
             </span>
+            <span className="muted small">
+              {candleFeed.lastTradeTime
+                ? <>Last trade <time dateTime={candleFeed.lastTradeTime}>
+                    {formatCandleTime(Date.parse(candleFeed.lastTradeTime) / 1000, true)}
+                  </time></>
+                : <>Latest candle <time dateTime={new Date(lastCandle.time * 1000).toISOString()}>
+                    {formatCandleTime(lastCandle.time)}
+                  </time></>}
+            </span>
+            {candleFeed.error && (
+              <span className="badge badge-muted" role="status">Refresh failed · showing last loaded data</span>
+            )}
           </div>
         )}
         <CandleChart
           candles={candles}
           datasetKey={chartKey}
+          interval={intervalSeconds(intervalKey)}
           loading={candleFeed.loading}
           error={candleFeed.error}
           baseSymbol={baseToken.symbol}
+          onLoadOlder={candleFeed.loadOlder}
         />
+        {candleFeed.hasOlder && (
+          <div className="candle-history-controls">
+            <button
+              className="chip"
+              disabled={candleFeed.historyStatus === "loading"}
+              onClick={candleFeed.loadOlder}
+            >
+              {candleFeed.historyStatus === "loading" ? "Loading older candles…" : "Load older candles"}
+            </button>
+            {candleFeed.historyStatus === "error" && (
+              <span className="muted small" role="status">Couldn’t load older candles. Try again.</span>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="grid-2">

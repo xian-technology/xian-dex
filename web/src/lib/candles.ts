@@ -1,6 +1,4 @@
-import type { XianDexCandle } from "@xian-tech/client";
-
-import { getClient } from "./xian";
+import type { XianClient, XianDexCandle, XianDexCandleOptions } from "@xian-tech/client";
 
 // OHLC bucket in chart-friendly form. Prices are always quoted as
 // "quote per base"; for a raw (non-inverted) pair that is token1 per
@@ -14,6 +12,12 @@ export interface Candle {
   volumeBase: number; // traded amount of the base (priced) token
   volumeQuote: number; // traded amount of the quote token
   trades: number;
+  lastBlockHeight: XianDexCandle["lastBlockHeight"];
+}
+
+export interface CandlePage {
+  candles: Candle[];
+  nextBefore: string | null;
 }
 
 export interface CandleInterval {
@@ -39,11 +43,7 @@ export function intervalSeconds(key: string): number {
   return CANDLE_INTERVALS.find((i) => i.key === key)?.seconds ?? 900;
 }
 
-// The BDS only materialises buckets that contain trades, so 500 buckets
-// can span an arbitrarily long wall-clock window on quiet pairs.
-export const CANDLE_FETCH_LIMIT = 500;
-// Hard cap on candles handed to the chart after gap filling.
-export const MAX_CHART_CANDLES = 2500;
+const CANDLE_FETCH_LIMIT = 500;
 
 function parseTime(value: string | null): number | null {
   if (value == null || value === "") return null;
@@ -78,24 +78,22 @@ export function candleFromApi(item: XianDexCandle): Candle | null {
     close,
     volumeBase: Math.max(0, Number(item.volumeToken0) || 0),
     volumeQuote: Math.max(0, Number(item.volumeToken1) || 0),
-    trades: item.tradeCount ?? 0
+    trades: item.tradeCount ?? 0,
+    lastBlockHeight: item.lastBlockHeight
   };
 }
 
 export async function fetchCandles(
+  client: Pick<XianClient, "getDexCandlePage">,
   pairId: number,
   interval: string,
-  options?: { start?: number; limit?: number }
-): Promise<Candle[]> {
-  const items = await getClient().listDexCandles(pairId, {
-    interval,
-    limit: options?.limit ?? CANDLE_FETCH_LIMIT,
-    start: options?.start
-  });
-  return items
-    .map(candleFromApi)
-    .filter((c): c is Candle => c != null)
-    .sort((a, b) => a.time - b.time);
+  options?: Pick<XianDexCandleOptions, "start" | "end" | "limit">
+): Promise<CandlePage> {
+  const page = await client.getDexCandlePage(pairId, { interval, limit: CANDLE_FETCH_LIMIT, ...options });
+  return {
+    candles: page.items.map(candleFromApi).filter((c) => c != null).sort((a, b) => a.time - b.time),
+    nextBefore: page.nextBefore
+  };
 }
 
 // Merge a freshly fetched tail into an existing ascending series. Buckets
@@ -114,74 +112,37 @@ export function mergeCandles(existing: Candle[], incoming: Candle[]): Candle[] {
 // swap because inversion is monotonically decreasing.
 export function invertCandles(candles: Candle[]): Candle[] {
   return candles.map((c) => ({
-    time: c.time,
+    ...c,
     open: 1 / c.open,
     high: 1 / c.low,
     low: 1 / c.high,
     close: 1 / c.close,
     volumeBase: c.volumeQuote,
-    volumeQuote: c.volumeBase,
-    trades: c.trades
+    volumeQuote: c.volumeBase
   }));
 }
 
-// BDS OHLC values are built from executions inside each bucket. On a quiet
-// market, a bucket with one trade therefore has open === close even when that
-// trade moved sharply away from the preceding price. Carry the prior close
-// into the next bucket's open so the rendered tape shows that movement while
-// retaining the indexed close, volume, trade count, and intrabucket extremes.
-export function connectCandleOpens(candles: Candle[]): Candle[] {
-  return candles.map((candle, index) => {
-    if (index === 0) return candle;
-    const open = candles[index - 1].close;
-    return {
-      ...candle,
-      open,
-      high: Math.max(candle.high, open),
-      low: Math.min(candle.low, open)
-    };
-  });
+export type CandlePoint = Candle | { time: number };
+
+// One whitespace slot marks each idle period on the chart's ordinal time axis.
+export function candleTimeline(candles: Candle[], interval: number): CandlePoint[] {
+  const points: CandlePoint[] = [];
+  let previous: Candle | undefined;
+  for (const candle of candles) {
+    if (previous && candle.time > previous.time + interval) {
+      points.push({ time: previous.time + interval });
+    }
+    points.push(candle);
+    previous = candle;
+  }
+  return points;
 }
 
-// The BDS omits buckets without trades. Insert flat zero-volume candles at
-// the previous close so the chart reads as a continuous tape. Output is
-// capped at maxCandles by dropping the oldest buckets first, which keeps a
-// pair with two trades months apart from exploding into 40k fillers.
-export function fillCandleGaps(
-  candles: Candle[],
-  seconds: number,
-  maxCandles = MAX_CHART_CANDLES
-): Candle[] {
-  if (candles.length === 0 || seconds <= 0) return candles;
-  const last = candles[candles.length - 1].time;
-  const cutoff = last - (maxCandles - 1) * seconds;
-  const out: Candle[] = [];
-  let prev: Candle | null = null;
-  for (const c of candles) {
-    if (c.time < cutoff) {
-      prev = c;
-      continue;
-    }
-    if (prev != null) {
-      for (
-        let t = Math.max(prev.time + seconds, cutoff);
-        t < c.time && out.length < maxCandles;
-        t += seconds
-      ) {
-        out.push({
-          time: t,
-          open: prev.close,
-          high: prev.close,
-          low: prev.close,
-          close: prev.close,
-          volumeBase: 0,
-          volumeQuote: 0,
-          trades: 0
-        });
-      }
-    }
-    out.push(c);
-    prev = c;
-  }
-  return out;
+export function prependRange(
+  points: CandlePoint[],
+  previousFirstTime: number,
+  range: { from: number; to: number }
+): { from: number; to: number } {
+  const added = Math.max(0, points.findIndex((point) => point.time === previousFirstTime));
+  return { from: range.from + added, to: range.to + added };
 }

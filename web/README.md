@@ -141,10 +141,12 @@ src/
 - Candlestick chart on the pair detail page (TradingView
   `lightweight-charts` over the node's `/dex_candles` BDS endpoint):
   1m–1W intervals, volume histogram, crosshair OHLC legend, invertible
-  price axis, 10s tail polling so the open candle ticks live. Empty
-  buckets are bridged with flat zero-volume candles client-side (capped
-  at 2500 bars), and each traded bucket carries the prior close into its
-  displayed open so sparse single-trade buckets still show price direction.
+  price axis, and a tail poll every 10 seconds after the previous one
+  finishes. Panning left or choosing **Load older candles** follows the
+  BDS cursor and keeps the current candles in view. Candles show indexed
+  trade prices and volume, with one whitespace slot per idle period.
+  The chart shows the latest trade's block time and keeps the last
+  loaded data visible when a refresh fails.
   Pool cards keep the lightweight reserve-poll sparkline.
 - Persistent transaction history drawer (last 50 actions) with status,
   contract.function, age, copy-able tx hash.

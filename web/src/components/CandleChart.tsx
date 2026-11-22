@@ -11,26 +11,28 @@ import {
   type HistogramData,
   type IChartApi,
   type ISeriesApi,
+  type LogicalRange,
   type MouseEventParams,
-  type UTCTimestamp
+  type UTCTimestamp,
+  type WhitespaceData
 } from "lightweight-charts";
 
-import type { Candle } from "../lib/candles";
+import { candleTimeline, prependRange, type Candle, type CandlePoint } from "../lib/candles";
 import { formatCompact, formatPrice } from "../lib/format";
 
 interface Props {
   candles: Candle[];
-  // Identity of the series (pair + interval + orientation + RPC). When it
-  // changes the chart is rebuilt and re-fitted; while it is stable, new
-  // data is applied as incremental tail updates so the viewport and the
-  // open candle animate in place instead of flickering through setData.
+  // Pair, interval, orientation and RPC identify the series.
   datasetKey: string;
+  interval: number;
   loading: boolean;
   error: boolean;
   baseSymbol: string;
+  onLoadOlder: () => void;
 }
 
 const INITIAL_BARS = 120; // default zoom: most recent bars
+const LOAD_OLDER_THRESHOLD = 12;
 const RIGHT_PAD_BARS = 5;
 const PRICE_SCALE_TOP_MARGIN = 0.08;
 const PRICE_SCALE_MAX_BOTTOM_MARGIN = 0.24;
@@ -64,13 +66,14 @@ function withAlpha(hex: string, alpha: number): string {
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
 }
 
-function formatLegendTime(time: number): string {
+export function formatCandleTime(time: number, showSeconds = false): string {
   return new Date(time * 1000).toLocaleString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    second: showSeconds ? "2-digit" : undefined,
     hour12: false
   });
 }
@@ -100,13 +103,16 @@ interface HoverBar {
   volume: number;
 }
 
-export function CandleChart({ candles, datasetKey, loading, error, baseSymbol }: Props) {
+export function CandleChart({
+  candles, datasetKey, interval, loading, error, baseSymbol, onLoadOlder
+}: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const priceSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
   const appliedRef = useRef<{ key: string; first: number; last: number } | null>(null);
-  const [hover, setHover] = useState<HoverBar | null>(null);
+  const [hover, setHover] = useState<HoverBar | "gap" | null>(null);
+  const points = useMemo(() => candleTimeline(candles, interval), [candles, interval]);
 
   const palette = useMemo(
     () => ({
@@ -166,7 +172,7 @@ export function CandleChart({ candles, datasetKey, loading, error, baseSymbol }:
       },
       localization: {
         priceFormatter: formatPrice,
-        timeFormatter: (time: UTCTimestamp) => formatLegendTime(time as number)
+        timeFormatter: (time: UTCTimestamp) => formatCandleTime(time as number)
       },
       // Inertia when dragging the tape — panning glides to a stop.
       kineticScroll: { mouse: true, touch: true }
@@ -199,9 +205,9 @@ export function CandleChart({ candles, datasetKey, loading, error, baseSymbol }:
         setHover(null);
         return;
       }
-      const bar = param.seriesData.get(priceSeries) as CandlestickData | undefined;
-      if (!bar) {
-        setHover(null);
+      const bar = param.seriesData.get(priceSeries) as CandlestickData | WhitespaceData | undefined;
+      if (!bar || !("open" in bar)) {
+        setHover("gap");
         return;
       }
       const vol = param.seriesData.get(volumeSeries) as HistogramData | undefined;
@@ -244,54 +250,65 @@ export function CandleChart({ candles, datasetKey, loading, error, baseSymbol }:
       }
     });
 
-    const toBar = (c: Candle): CandlestickData => ({
-      time: c.time as UTCTimestamp,
-      open: c.open,
-      high: c.high,
-      low: c.low,
-      close: c.close
-    });
-    const toVolume = (c: Candle): HistogramData => ({
-      time: c.time as UTCTimestamp,
-      value: c.volumeBase,
-      color: withAlpha(c.close >= c.open ? palette.up : palette.down, 0.32)
-    });
+    const toBar = (point: CandlePoint): CandlestickData | WhitespaceData => {
+      const time = point.time as UTCTimestamp;
+      return "open" in point
+        ? { time, open: point.open, high: point.high, low: point.low, close: point.close }
+        : { time };
+    };
+    const toVolume = (point: CandlePoint): HistogramData | WhitespaceData => {
+      const time = point.time as UTCTimestamp;
+      return "open" in point
+        ? { time, value: point.volumeBase, color: withAlpha(point.close >= point.open ? palette.up : palette.down, 0.32) }
+        : { time };
+    };
 
-    const first = candles[0]?.time ?? 0;
-    const last = candles[candles.length - 1]?.time ?? 0;
+    const first = points[0]?.time;
+    const last = points.at(-1)?.time;
     const applied = appliedRef.current;
-    const continuation =
-      applied != null &&
-      applied.key === datasetKey &&
-      candles.length > 0 &&
-      applied.last > 0 &&
-      first === applied.first &&
-      last >= applied.last;
-
-    if (continuation) {
-      for (const c of candles) {
-        if (c.time < applied.last) continue;
-        priceSeries.update(toBar(c));
-        volumeSeries.update(toVolume(c));
+    const sameDataset = applied?.key === datasetKey;
+    if (sameDataset && first === applied.first && last !== undefined && last >= applied.last) {
+      for (const point of points) {
+        if (point.time < applied.last) continue;
+        priceSeries.update(toBar(point));
+        volumeSeries.update(toVolume(point));
       }
     } else {
-      priceSeries.setData(candles.map(toBar));
-      volumeSeries.setData(candles.map(toVolume));
-      if (candles.length > INITIAL_BARS) {
-        chart.timeScale().setVisibleLogicalRange({
-          from: candles.length - INITIAL_BARS,
-          to: candles.length + RIGHT_PAD_BARS
+      const scale = chart.timeScale();
+      const range = sameDataset ? scale.getVisibleLogicalRange() : null;
+      priceSeries.setData(points.map(toBar));
+      volumeSeries.setData(points.map(toVolume));
+      if (range && applied) {
+        scale.setVisibleLogicalRange(prependRange(points, applied.first, range));
+      } else if (points.length > INITIAL_BARS) {
+        scale.setVisibleLogicalRange({
+          from: points.length - INITIAL_BARS,
+          to: points.length + RIGHT_PAD_BARS
         });
       } else {
-        chart.timeScale().fitContent();
+        scale.fitContent();
       }
       setHover(null);
     }
-    appliedRef.current = { key: datasetKey, first, last };
-  }, [candles, datasetKey, palette]);
+    appliedRef.current = first !== undefined && last !== undefined ? { key: datasetKey, first, last } : null;
+  }, [candles, datasetKey, palette, points]);
+
+  useEffect(() => {
+    const scale = chartRef.current?.timeScale();
+    if (!scale) return;
+    let previous = scale.getVisibleLogicalRange()?.from;
+    function onRange(range: LogicalRange | null) {
+      const from = range?.from;
+      const movedLeft = from != null && previous != null && from < previous;
+      previous = from;
+      if (movedLeft && from <= LOAD_OLDER_THRESHOLD) onLoadOlder();
+    }
+    scale.subscribeVisibleLogicalRangeChange(onRange);
+    return () => scale.unsubscribeVisibleLogicalRangeChange(onRange);
+  }, [datasetKey, onLoadOlder]);
 
   const lastCandle = candles.length > 0 ? candles[candles.length - 1] : null;
-  const legend: HoverBar | null =
+  const legend = hover === "gap" ? null :
     hover ??
     (lastCandle && {
       time: lastCandle.time,
@@ -310,7 +327,7 @@ export function CandleChart({ candles, datasetKey, loading, error, baseSymbol }:
       <div ref={containerRef} className="candle-chart-canvas" />
       {legend && (
         <div className="candle-legend mono">
-          <span className="candle-legend-time">{formatLegendTime(legend.time)}</span>
+          <span className="candle-legend-time">{formatCandleTime(legend.time)}</span>
           <span>
             O <b style={{ color: legendUp ? palette.up : palette.down }}>{formatPrice(legend.open)}</b>
           </span>
@@ -332,6 +349,7 @@ export function CandleChart({ candles, datasetKey, loading, error, baseSymbol }:
           </span>
         </div>
       )}
+      {hover === "gap" && <div className="candle-legend muted">No trades in this gap</div>}
       {candles.length === 0 && (
         <div className="candle-chart-overlay muted small">
           {loading

@@ -1,17 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
-import type { XianDexCandle } from "@xian-tech/client";
-
-const listDexCandles = vi.hoisted(() => vi.fn(async () => [] as unknown[]));
-
-vi.mock("./xian", () => ({ getClient: () => ({ listDexCandles }) }));
+import type { XianDexCandle, XianDexCandlePage } from "@xian-tech/client";
 
 import {
   candleFromApi,
-  connectCandleOpens,
+  candleTimeline,
   fetchCandles,
-  fillCandleGaps,
   invertCandles,
   mergeCandles,
+  prependRange,
   type Candle
 } from "./candles";
 
@@ -48,6 +44,7 @@ function candle(time: number, close: number, overrides: Partial<Candle> = {}): C
     volumeBase: 1,
     volumeQuote: 1,
     trades: 1,
+    lastBlockHeight: 100,
     ...overrides
   };
 }
@@ -63,7 +60,8 @@ describe("candleFromApi", () => {
       close: 2.5,
       volumeBase: 10,
       volumeQuote: 25,
-      trades: 4
+      trades: 4,
+      lastBlockHeight: 110
     });
   });
 
@@ -93,64 +91,17 @@ describe("invertCandles", () => {
   });
 });
 
-describe("connectCandleOpens", () => {
-  it("shows movement from the prior close for a single-trade bucket", () => {
-    const connected = connectCandleOpens([
-      candle(0, 1.532717),
-      candle(300, 0.276932)
-    ]);
-
-    expect(connected[0]).toEqual(candle(0, 1.532717));
-    expect(connected[1]).toMatchObject({
-      open: 1.532717,
-      high: 1.532717,
-      low: 0.276932,
-      close: 0.276932,
-      trades: 1
-    });
+describe("candleTimeline", () => {
+  it("keeps indexed OHLC and inserts only whitespace across an idle period", () => {
+    const first = candle(0, 5);
+    const second = candle(60_000, 7, { open: 8, high: 9, low: 6 });
+    expect(candleTimeline([first, second], 60)).toEqual([first, { time: 60 }, second]);
+    expect(candleTimeline([first, candle(60, 6)], 60)).toEqual([first, candle(60, 6)]);
   });
 
-  it("includes the prior close without discarding intrabucket extremes", () => {
-    const connected = connectCandleOpens([
-      candle(0, 2),
-      candle(300, 2.5, { open: 3, high: 4, low: 2.25 })
-    ]);
-
-    expect(connected[1]).toMatchObject({
-      open: 2,
-      high: 4,
-      low: 2,
-      close: 2.5
-    });
-  });
-});
-
-describe("fillCandleGaps", () => {
-  it("bridges empty buckets with flat zero-volume candles at the prior close", () => {
-    const filled = fillCandleGaps([candle(0, 5), candle(180, 7)], 60);
-    expect(filled.map((c) => c.time)).toEqual([0, 60, 120, 180]);
-    expect(filled[1]).toMatchObject({ open: 5, high: 5, low: 5, close: 5, volumeBase: 0, trades: 0 });
-    expect(filled[2].close).toBe(5);
-    expect(filled[3].close).toBe(7);
-  });
-
-  it("leaves contiguous series untouched", () => {
-    const series = [candle(0, 5), candle(60, 6)];
-    expect(fillCandleGaps(series, 60)).toEqual(series);
-  });
-
-  it("caps output at maxCandles by dropping the oldest buckets", () => {
-    // Two trades 1000 minutes apart on 1m candles: without the cap this
-    // would fill 999 buckets.
-    const filled = fillCandleGaps([candle(0, 5), candle(60_000, 7)], 60, 10);
-    expect(filled.length).toBe(10);
-    expect(filled[filled.length - 1].close).toBe(7);
-    expect(filled[0].time).toBe(60_000 - 9 * 60);
-    expect(filled[0].close).toBe(5);
-  });
-
-  it("handles empty input", () => {
-    expect(fillCandleGaps([], 60)).toEqual([]);
+  it("keeps the same bars on-screen after prepending candles and whitespace", () => {
+    const timeline = candleTimeline([candle(0, 5), candle(60, 6), candle(240, 7)], 60);
+    expect(prependRange(timeline, 240, { from: -0.5, to: 6 })).toEqual({ from: 2.5, to: 9 });
   });
 });
 
@@ -173,14 +124,24 @@ describe("mergeCandles", () => {
 });
 
 describe("fetchCandles", () => {
-  it("sorts ascending and drops unparseable rows", async () => {
-    listDexCandles.mockResolvedValueOnce([
-      apiCandle({ bucketStart: "120", close: "7" }),
-      apiCandle({ bucketStart: "60", close: "6" }),
-      apiCandle({ bucketStart: "180", close: null })
-    ]);
-    const candles = await fetchCandles(1, "1m");
-    expect(listDexCandles).toHaveBeenCalledWith(1, { interval: "1m", limit: 500, start: undefined });
-    expect(candles.map((c) => c.time)).toEqual([60, 120]);
+  it("retains the cursor and normalizes the candles", async () => {
+    const page: XianDexCandlePage = {
+      items: [
+        apiCandle({ bucketStart: "120", close: "7" }),
+        apiCandle({ bucketStart: "60", close: "6" }),
+        apiCandle({ bucketStart: "180", close: null })
+      ],
+      indexedHeight: 110,
+      nextBefore: "2026-07-05T11:00:00+00:00"
+    };
+    const getDexCandlePage = vi.fn().mockResolvedValue(page);
+    const result = await fetchCandles({ getDexCandlePage }, 1, "1m", {
+      end: "2026-07-05T12:00:00+00:00"
+    });
+    expect(getDexCandlePage).toHaveBeenCalledWith(1, {
+      interval: "1m", limit: 500, end: "2026-07-05T12:00:00+00:00"
+    });
+    expect(result.candles.map((c) => c.time)).toEqual([60, 120]);
+    expect(result.nextBefore).toBe(page.nextBefore);
   });
 });

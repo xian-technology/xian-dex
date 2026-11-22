@@ -1030,6 +1030,12 @@ button.badge:hover { filter: brightness(1.15); }
   position: absolute;
   inset: 0;
 }
+.candle-history-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
 .candle-legend {
   position: absolute;
   top: 6px;
